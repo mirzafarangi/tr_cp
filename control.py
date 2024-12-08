@@ -11,7 +11,35 @@ CONFIG_FILE = 'config.json'
 DATA_FOLDER = 'data'
 TRADING_CONFIG = 'trading_config.json'
 
-
+# Add this new function
+def configure_network():
+    """Configure network settings for API access"""
+    session = requests.Session()
+    
+    # Your ExpressVPN credentials from environment variables
+    vpn_user = os.getenv('VPN_USER', '')  # Will be set in Streamlit Cloud
+    vpn_pass = os.getenv('VPN_PASS', '')  # Will be set in Streamlit Cloud
+    
+    # ExpressVPN's German server
+    vpn_host = "germany-frankfurt-1.express-vpn-proxy.com"  # Example server, use your actual ExpressVPN server
+    vpn_port = "443"
+    
+    # Configure the proxy settings
+    if vpn_user and vpn_pass:
+        proxy_url = f"https://{vpn_user}:{vpn_pass}@{vpn_host}:{vpn_port}"
+        os.environ['HTTPS_PROXY'] = proxy_url
+        os.environ['HTTP_PROXY'] = proxy_url
+        
+        # Test connection
+        try:
+            test = session.get('https://api.binance.com/api/v3/ping')
+            if test.status_code == 200:
+                st.sidebar.success("VPN Connection Successful")
+                return True
+        except Exception as e:
+            st.sidebar.error(f"VPN Connection Failed: {str(e)}")
+            return False
+    return False
 
 def save_trading_params(symbol: str, interval: str):
     """Save trading parameters to config file"""
@@ -115,19 +143,8 @@ def launch_dashboard(script_name: str):
 def main():
     st.set_page_config(page_title="Trading Control Panel", layout="wide")
     
-    # Setup proxy directly here
-    proxy_host = "85.14.243.31"
-    proxy_port = "3128"
-
-    #proxy_host = "162.55.37.186"
-    #proxy_port = "10071"
-
-    #proxy_host = "173.212.224.134"
-    #proxy_port = "3128"
-
-    os.environ['HTTP_PROXY'] = f'http://{proxy_host}:{proxy_port}'
-    os.environ['HTTPS_PROXY'] = f'http://{proxy_host}:{proxy_port}'
-    st.sidebar.info(f"Using proxy: {proxy_host}:{proxy_port}")
+    # Add VPN configuration at the start
+    configure_network()
     
     # Simple header
     st.title("Control Panel")
