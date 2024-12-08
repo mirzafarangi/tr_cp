@@ -14,37 +14,26 @@ TRADING_CONFIG = 'trading_config.json'
 
 def configure_network():
     """Configure network settings for API access"""
-    session = requests.Session()
+    # Webshare proxy credentials
+    proxy_username = "sqpwmtlu"  # Get from webshare.io
+    proxy_password = "kl46de03cxib"  # Get from webshare.io
+    proxy_host = "p.webshare.io"
+    proxy_port = "80"
     
-    # German proxies (these are regularly updated free proxies)
-    proxies = [
-        "http://185.189.199.75:23500",
-        "http://194.163.163.245:3128",
-        "http://178.32.101.200:80",
-        "http://161.35.70.132:8080"
-    ]
+    proxy_url = f"http://{proxy_username}:{proxy_password}@{proxy_host}:{proxy_port}"
     
-    for proxy in proxies:
-        try:
-            # Test connection
-            test = requests.get('https://api.binance.com/api/v3/ping', 
-                              proxies={
-                                  'http': proxy,
-                                  'https': proxy
-                              }, 
-                              timeout=10)
-            
-            if test.status_code == 200:
-                os.environ['HTTP_PROXY'] = proxy
-                os.environ['HTTPS_PROXY'] = proxy
-                st.sidebar.success("Connected via proxy")
-                return True
-                
-        except Exception as e:
-            continue
-            
-    st.sidebar.error("Failed to connect to any proxy")
-    return False
+    try:
+        test = requests.get('https://api.binance.com/api/v3/ping', 
+                          proxies={'http': proxy_url, 'https': proxy_url}, 
+                          timeout=10)
+        if test.status_code == 200:
+            os.environ['HTTP_PROXY'] = proxy_url
+            os.environ['HTTPS_PROXY'] = proxy_url
+            st.sidebar.success("Proxy Connected")
+            return True
+    except Exception as e:
+        st.sidebar.error(f"Proxy Connection Failed: {str(e)}")
+        return False
 
 def save_trading_params(symbol: str, interval: str):
     """Save trading parameters to config file"""
