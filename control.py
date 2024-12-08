@@ -14,28 +14,36 @@ TRADING_CONFIG = 'trading_config.json'
 
 def configure_network():
     """Configure network settings for API access"""
-    try:
-        # Start OpenVPN
-        ovpn_path = "my_expressvpn_germany_-_frankfurt_-_1_udp.ovpn"
-        process = subprocess.Popen(['openvpn', '--config', ovpn_path],
-                                 stdout=subprocess.PIPE,
-                                 stderr=subprocess.PIPE)
-        
-        # Wait for connection
-        time.sleep(10)
-        
-        # Test connection
-        test = requests.get('https://api.binance.com/api/v3/ping', 
-                          timeout=10,
-                          verify=True)
-        
-        if test.status_code == 200:
-            st.sidebar.success("ExpressVPN Connected")
-            return True
+    session = requests.Session()
+    
+    # German proxies (these are regularly updated free proxies)
+    proxies = [
+        "http://185.189.199.75:23500",
+        "http://194.163.163.245:3128",
+        "http://178.32.101.200:80",
+        "http://161.35.70.132:8080"
+    ]
+    
+    for proxy in proxies:
+        try:
+            # Test connection
+            test = requests.get('https://api.binance.com/api/v3/ping', 
+                              proxies={
+                                  'http': proxy,
+                                  'https': proxy
+                              }, 
+                              timeout=10)
             
-    except Exception as e:
-        st.sidebar.error(f"VPN Connection Failed: {str(e)}")
-        
+            if test.status_code == 200:
+                os.environ['HTTP_PROXY'] = proxy
+                os.environ['HTTPS_PROXY'] = proxy
+                st.sidebar.success("Connected via proxy")
+                return True
+                
+        except Exception as e:
+            continue
+            
+    st.sidebar.error("Failed to connect to any proxy")
     return False
 
 def save_trading_params(symbol: str, interval: str):
