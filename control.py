@@ -4,31 +4,14 @@ import os
 import sys
 from datetime import datetime
 import json
-from proxy_config import setup_proxy, clear_proxy
+
 
 # Constants
 CONFIG_FILE = 'config.json'
 DATA_FOLDER = 'data'
 TRADING_CONFIG = 'trading_config.json'
 
-def setup_proxy():
-    """Setup proxy configuration for the application"""
-    # Free German proxy - you should replace these with more reliable proxy details
-    proxy_host = "85.14.243.31"  # example proxy - replace with your preferred proxy
-    proxy_port = "3128"          # example port - replace with your preferred port
-    
-    # Set environment variables for proxy
-    os.environ['HTTP_PROXY'] = f'http://{proxy_host}:{proxy_port}'
-    os.environ['HTTPS_PROXY'] = f'http://{proxy_host}:{proxy_port}'
-    
-    # For debugging - you can comment these out later
-    st.sidebar.info(f"Using proxy: {proxy_host}:{proxy_port}")
-    return True
 
-def clear_proxy():
-    """Clear proxy settings if needed"""
-    os.environ.pop('HTTP_PROXY', None)
-    os.environ.pop('HTTPS_PROXY', None)
 
 def save_trading_params(symbol: str, interval: str):
     """Save trading parameters to config file"""
@@ -131,7 +114,20 @@ def launch_dashboard(script_name: str):
 
 def main():
     st.set_page_config(page_title="Trading Control Panel", layout="wide")
-    setup_proxy()
+    
+    # Setup proxy directly here
+    proxy_host = "85.14.243.31"
+    proxy_port = "3128"
+
+    #proxy_host = "162.55.37.186"
+    #proxy_port = "10071"
+
+    #proxy_host = "173.212.224.134"
+    #proxy_port = "3128"
+
+    os.environ['HTTP_PROXY'] = f'http://{proxy_host}:{proxy_port}'
+    os.environ['HTTPS_PROXY'] = f'http://{proxy_host}:{proxy_port}'
+    st.sidebar.info(f"Using proxy: {proxy_host}:{proxy_port}")
     
     # Simple header
     st.title("Control Panel")
