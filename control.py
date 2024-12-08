@@ -4,7 +4,7 @@ import os
 import sys
 from datetime import datetime
 import json
-
+import requests
 
 # Constants
 CONFIG_FILE = 'config.json'
