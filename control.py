@@ -17,28 +17,42 @@ def configure_network():
     session = requests.Session()
     
     # Your ExpressVPN credentials from environment variables
-    vpn_user = os.getenv('VPN_USER', '')  # Will be set in Streamlit Cloud
-    vpn_pass = os.getenv('VPN_PASS', '')  # Will be set in Streamlit Cloud
+    vpn_user = os.getenv('VPN_USER', '')
+    vpn_pass = os.getenv('VPN_PASS', '')
     
-    # ExpressVPN's German server
-    vpn_host = "germany-frankfurt-1.express-vpn-proxy.com"  # Example server, use your actual ExpressVPN server
-    vpn_port = "443"
+    if not vpn_user or not vpn_pass:
+        st.sidebar.warning("VPN credentials not set")
+        return False
     
-    # Configure the proxy settings
-    if vpn_user and vpn_pass:
-        proxy_url = f"https://{vpn_user}:{vpn_pass}@{vpn_host}:{vpn_port}"
-        os.environ['HTTPS_PROXY'] = proxy_url
-        os.environ['HTTP_PROXY'] = proxy_url
+    # Try multiple German servers
+    servers = [
+        ("de-fra.prod.surfshark.com", "443"),  # Frankfurt
+        ("de-ber.prod.surfshark.com", "443"),  # Berlin
+        ("germany.express-vpn-proxy.com", "443")  # Express fallback
+    ]
+    
+    for vpn_host, vpn_port in servers:
+        proxy_url = f"http://{vpn_user}:{vpn_pass}@{vpn_host}:{vpn_port}"
+        proxies = {
+            'http': proxy_url,
+            'https': proxy_url
+        }
         
-        # Test connection
         try:
-            test = session.get('https://api.binance.com/api/v3/ping')
+            # Test connection with timeout
+            test = requests.get('https://api.binance.com/api/v3/ping', 
+                              proxies=proxies, 
+                              timeout=5)
             if test.status_code == 200:
-                st.sidebar.success("VPN Connection Successful")
+                # Set environment variables for child processes
+                os.environ['HTTP_PROXY'] = proxy_url
+                os.environ['HTTPS_PROXY'] = proxy_url
+                st.sidebar.success(f"Connected via {vpn_host}")
                 return True
         except Exception as e:
-            st.sidebar.error(f"VPN Connection Failed: {str(e)}")
-            return False
+            continue
+    
+    st.sidebar.error("Failed to connect to any VPN server")
     return False
 
 def save_trading_params(symbol: str, interval: str):
@@ -79,10 +93,18 @@ def run_script(script_name: str, status_placeholder) -> None:
     """Execute a Python script and display its output"""
     try:
         status_placeholder.info(f"Running {script_name}...")
+        
+        # Create environment with proxy settings
+        env = os.environ.copy()
+        if 'HTTP_PROXY' in os.environ:
+            env['HTTP_PROXY'] = os.environ['HTTP_PROXY']
+            env['HTTPS_PROXY'] = os.environ['HTTPS_PROXY']
+        
         process = subprocess.Popen([sys.executable, script_name], 
                                 stdout=subprocess.PIPE, 
                                 stderr=subprocess.PIPE,
-                                text=True)
+                                text=True,
+                                env=env)  # Add environment variables
         
         while True:
             output = process.stdout.readline()
