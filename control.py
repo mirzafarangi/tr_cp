@@ -14,33 +14,24 @@ TRADING_CONFIG = 'trading_config.json'
 
 def configure_network():
     """Configure network settings for API access"""
-    # Webshare proxy credentials
+    # Use a specific proxy from your Webshare dashboard
     proxy_username = "sqpwmtlu"
     proxy_password = "kl46de03cxib"
-    proxy_host = "p.webshare.io"
-    proxy_port = "80"
+    # Replace these with an actual proxy from your dashboard
+    proxy_host = "64.137.42.112"    # example - use one from your list
+    proxy_port = "5157"              # use the port from your list
     
-    # Format auth differently to handle special characters
     proxy_url = f"http://{proxy_username}:{proxy_password}@{proxy_host}:{proxy_port}"
     
-    # Set up session with proxy
-    session = requests.Session()
-    session.proxies = {
-        'http': proxy_url,
-        'https': proxy_url
-    }
-    session.auth = (proxy_username, proxy_password)
-    
     try:
-        # Test with specific headers and verification disabled for testing
-        test = session.get(
+        test = requests.get(
             'https://api.binance.com/api/v3/ping',
-            timeout=10,
-            headers={
-                'User-Agent': 'Mozilla/5.0',
-                'Proxy-Authorization': f'Basic {proxy_username}:{proxy_password}'
+            proxies={
+                'http': proxy_url,
+                'https': proxy_url
             },
-            verify=False
+            timeout=15,
+            verify=True
         )
         
         if test.status_code == 200:
@@ -49,12 +40,8 @@ def configure_network():
             st.sidebar.success("Proxy Connected")
             return True
             
-    except requests.exceptions.ProxyError as e:
-        st.sidebar.error(f"Proxy Authentication Failed: {str(e)}")
-    except requests.exceptions.RequestException as e:
-        st.sidebar.error(f"Connection Error: {str(e)}")
     except Exception as e:
-        st.sidebar.error(f"Error: {str(e)}")
+        st.sidebar.error(f"Proxy Connection Failed: {str(e)}")
         
     return False
 
