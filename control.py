@@ -11,24 +11,19 @@ CONFIG_FILE = 'config.json'
 DATA_FOLDER = 'data'
 TRADING_CONFIG = 'trading_config.json'
 
-# Add this new function
 def configure_network():
     """Configure network settings for API access"""
     session = requests.Session()
     
-    # Your ExpressVPN credentials from environment variables
-    vpn_user = os.getenv('VPN_USER', '')
-    vpn_pass = os.getenv('VPN_PASS', '')
+    # Your ExpressVPN credentials
+    vpn_user = "jq6d67y48e41syij8fj879ca"
+    vpn_pass = "c5qlqxmos9cklw4tvtauh88s"
     
-    if not vpn_user or not vpn_pass:
-        st.sidebar.warning("VPN credentials not set")
-        return False
-    
-    # Try multiple German servers
+    # Try multiple ExpressVPN proxy servers
     servers = [
-        ("de-fra.prod.surfshark.com", "443"),  # Frankfurt
-        ("de-ber.prod.surfshark.com", "443"),  # Berlin
-        ("germany.express-vpn-proxy.com", "443")  # Express fallback
+        ("german-frankfurt-1.expressnetw.com", "443"),
+        ("german-frankfurt-2.expressnetw.com", "443"),
+        ("german-nuremberg-1.expressnetw.com", "443")
     ]
     
     for vpn_host, vpn_port in servers:
@@ -42,17 +37,18 @@ def configure_network():
             # Test connection with timeout
             test = requests.get('https://api.binance.com/api/v3/ping', 
                               proxies=proxies, 
-                              timeout=5)
+                              timeout=10,
+                              verify=True)
             if test.status_code == 200:
-                # Set environment variables for child processes
                 os.environ['HTTP_PROXY'] = proxy_url
                 os.environ['HTTPS_PROXY'] = proxy_url
                 st.sidebar.success(f"Connected via {vpn_host}")
                 return True
         except Exception as e:
+            st.sidebar.warning(f"Failed to connect to {vpn_host}: {str(e)}")
             continue
     
-    st.sidebar.error("Failed to connect to any VPN server")
+    st.sidebar.error("Failed to connect to any proxy server")
     return False
 
 def save_trading_params(symbol: str, interval: str):

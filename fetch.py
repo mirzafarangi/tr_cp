@@ -98,15 +98,23 @@ class BinanceDataFetcher:
     
     def __init__(self):
         self.session = requests.Session()
+        if 'HTTP_PROXY' in os.environ:
+            self.session.proxies = {
+                'http': os.environ['HTTP_PROXY'],
+                'https': os.environ['HTTPS_PROXY']
+            }
+            # Add these configurations
+            self.session.verify = True
+            self.session.timeout = 30
     
     def fetch_historical_data(
-        self,
-        symbol: str,
-        interval: str,
-        start_date: str,
-        end_date: Optional[str] = None,
-        limit: int = 1000
-    ) -> pd.DataFrame:
+    self,
+    symbol: str,
+    interval: str,
+    start_date: str,
+    end_date: Optional[str] = None,
+    limit: int = 1000
+) -> pd.DataFrame:
         """
         Fetch complete historical data from Binance
         
@@ -136,7 +144,12 @@ class BinanceDataFetcher:
             }
             
             try:
-                response = self.session.get(self.BASE_URL, params=params)
+                response = self.session.get(
+                    self.BASE_URL, 
+                    params=params,
+                    timeout=30,
+                    verify=True
+                )
                 response.raise_for_status()
                 
                 klines = response.json()
@@ -147,8 +160,13 @@ class BinanceDataFetcher:
                 current_start = klines[-1][0] + 1
                 time.sleep(0.1)  # Rate limiting
                 
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Network error: {str(e)}")
+                time.sleep(1)  # Retry delay
+                continue
+                
             except Exception as e:
-                print(f"Error fetching data: {str(e)}")
+                logger.error(f"Error fetching data: {str(e)}")
                 break
         
         return self._process_klines_data(all_klines)
