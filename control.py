@@ -19,36 +19,27 @@ def configure_network():
     vpn_user = "jq6d67y48e41syij8fj879ca"
     vpn_pass = "c5qlqxmos9cklw4tvtauh88s"
     
-    # ExpressVPN's Smart Location servers
-    servers = [
-        ("de2-ca-version-2.duckvpn.net", "443"),
-        ("de4.vpn.express", "443"),
-        ("germany.smartdns-proxy.com", "443")
-    ]
+    # Direct ExpressVPN proxy
+    proxy_url = f"https://{vpn_user}:{vpn_pass}@proxy.express-vpn.com:443"
     
-    for vpn_host, vpn_port in servers:
-        proxy_url = f"https://{vpn_user}:{vpn_pass}@{vpn_host}:{vpn_port}"
-        proxies = {
-            'http': proxy_url,
-            'https': proxy_url
-        }
+    try:
+        # Set proxy configuration
+        os.environ['HTTP_PROXY'] = proxy_url
+        os.environ['HTTPS_PROXY'] = proxy_url
         
-        try:
-            # Test connection with timeout
-            test = requests.get('https://api.binance.com/api/v3/ping', 
-                              proxies=proxies, 
-                              timeout=10,
-                              verify=True)
-            if test.status_code == 200:
-                os.environ['HTTP_PROXY'] = proxy_url
-                os.environ['HTTPS_PROXY'] = proxy_url
-                st.sidebar.success(f"Connected via {vpn_host}")
-                return True
-        except Exception as e:
-            st.sidebar.warning(f"Failed to connect to {vpn_host}: {str(e)}")
-            continue
-    
-    st.sidebar.error("Failed to connect to any proxy server")
+        # Test connection
+        test = requests.get('https://api.binance.com/api/v3/ping', 
+                          proxies={'http': proxy_url, 'https': proxy_url}, 
+                          timeout=10,
+                          verify=True)
+        
+        if test.status_code == 200:
+            st.sidebar.success("VPN Connected")
+            return True
+            
+    except Exception as e:
+        st.sidebar.error(f"VPN Connection Failed: {str(e)}")
+        
     return False
 
 def save_trading_params(symbol: str, interval: str):
