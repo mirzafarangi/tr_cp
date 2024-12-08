@@ -8,12 +8,15 @@ from dataclasses import dataclass
 from enum import Enum
 import logging
 import json
+import os
+import streamlit as st
 
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
 
 def load_trading_params():
     with open('trading_config.json', 'r') as f:
@@ -103,7 +106,6 @@ class BinanceDataFetcher:
                 'http': os.environ['HTTP_PROXY'],
                 'https': os.environ['HTTPS_PROXY']
             }
-            # Add these configurations
             self.session.verify = True
             self.session.timeout = 30
     

@@ -19,15 +19,15 @@ def configure_network():
     vpn_user = "jq6d67y48e41syij8fj879ca"
     vpn_pass = "c5qlqxmos9cklw4tvtauh88s"
     
-    # Try multiple ExpressVPN proxy servers
+    # ExpressVPN's Smart Location servers
     servers = [
-        ("german-frankfurt-1.expressnetw.com", "443"),
-        ("german-frankfurt-2.expressnetw.com", "443"),
-        ("german-nuremberg-1.expressnetw.com", "443")
+        ("de2-ca-version-2.duckvpn.net", "443"),
+        ("de4.vpn.express", "443"),
+        ("germany.smartdns-proxy.com", "443")
     ]
     
     for vpn_host, vpn_port in servers:
-        proxy_url = f"http://{vpn_user}:{vpn_pass}@{vpn_host}:{vpn_port}"
+        proxy_url = f"https://{vpn_user}:{vpn_pass}@{vpn_host}:{vpn_port}"
         proxies = {
             'http': proxy_url,
             'https': proxy_url
