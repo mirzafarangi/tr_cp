@@ -5,6 +5,7 @@ import sys
 from datetime import datetime
 import json
 import requests
+import time 
 
 # Constants
 CONFIG_FILE = 'config.json'
@@ -13,37 +14,28 @@ TRADING_CONFIG = 'trading_config.json'
 
 def configure_network():
     """Configure network settings for API access"""
-    session = requests.Session()
-    
-    # Using a free German proxy
-    proxies = [
-        "http://109.71.15.209:8118",
-        "http://185.189.199.75:23500",
-        "http://161.35.70.132:8080"
-    ]
-    
-    for proxy in proxies:
-        try:
-            # Test connection
-            test = requests.get('https://api.binance.com/api/v3/ping', 
-                              proxies={
-                                  'http': proxy,
-                                  'https': proxy
-                              }, 
-                              timeout=10,
-                              verify=True)
+    try:
+        # Start OpenVPN
+        ovpn_path = "my_expressvpn_germany_-_frankfurt_-_1_udp.ovpn"
+        process = subprocess.Popen(['openvpn', '--config', ovpn_path],
+                                 stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE)
+        
+        # Wait for connection
+        time.sleep(10)
+        
+        # Test connection
+        test = requests.get('https://api.binance.com/api/v3/ping', 
+                          timeout=10,
+                          verify=True)
+        
+        if test.status_code == 200:
+            st.sidebar.success("ExpressVPN Connected")
+            return True
             
-            if test.status_code == 200:
-                os.environ['HTTP_PROXY'] = proxy
-                os.environ['HTTPS_PROXY'] = proxy
-                st.sidebar.success(f"Connected via proxy")
-                return True
-                
-        except Exception as e:
-            st.sidebar.warning(f"Failed to connect: {str(e)}")
-            continue
-            
-    st.sidebar.error("Failed to connect to any proxy")
+    except Exception as e:
+        st.sidebar.error(f"VPN Connection Failed: {str(e)}")
+        
     return False
 
 def save_trading_params(symbol: str, interval: str):
