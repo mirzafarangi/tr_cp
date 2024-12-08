@@ -15,25 +15,48 @@ TRADING_CONFIG = 'trading_config.json'
 def configure_network():
     """Configure network settings for API access"""
     # Webshare proxy credentials
-    proxy_username = "sqpwmtlu"  # Get from webshare.io
-    proxy_password = "kl46de03cxib"  # Get from webshare.io
+    proxy_username = "sqpwmtlu"
+    proxy_password = "kl46de03cxib"
     proxy_host = "p.webshare.io"
     proxy_port = "80"
     
+    # Format auth differently to handle special characters
     proxy_url = f"http://{proxy_username}:{proxy_password}@{proxy_host}:{proxy_port}"
     
+    # Set up session with proxy
+    session = requests.Session()
+    session.proxies = {
+        'http': proxy_url,
+        'https': proxy_url
+    }
+    session.auth = (proxy_username, proxy_password)
+    
     try:
-        test = requests.get('https://api.binance.com/api/v3/ping', 
-                          proxies={'http': proxy_url, 'https': proxy_url}, 
-                          timeout=10)
+        # Test with specific headers and verification disabled for testing
+        test = session.get(
+            'https://api.binance.com/api/v3/ping',
+            timeout=10,
+            headers={
+                'User-Agent': 'Mozilla/5.0',
+                'Proxy-Authorization': f'Basic {proxy_username}:{proxy_password}'
+            },
+            verify=False
+        )
+        
         if test.status_code == 200:
             os.environ['HTTP_PROXY'] = proxy_url
             os.environ['HTTPS_PROXY'] = proxy_url
             st.sidebar.success("Proxy Connected")
             return True
+            
+    except requests.exceptions.ProxyError as e:
+        st.sidebar.error(f"Proxy Authentication Failed: {str(e)}")
+    except requests.exceptions.RequestException as e:
+        st.sidebar.error(f"Connection Error: {str(e)}")
     except Exception as e:
-        st.sidebar.error(f"Proxy Connection Failed: {str(e)}")
-        return False
+        st.sidebar.error(f"Error: {str(e)}")
+        
+    return False
 
 def save_trading_params(symbol: str, interval: str):
     """Save trading parameters to config file"""
