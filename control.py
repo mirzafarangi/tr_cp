@@ -15,31 +15,35 @@ def configure_network():
     """Configure network settings for API access"""
     session = requests.Session()
     
-    # Your ExpressVPN credentials
-    vpn_user = "jq6d67y48e41syij8fj879ca"
-    vpn_pass = "c5qlqxmos9cklw4tvtauh88s"
+    # Using a free German proxy
+    proxies = [
+        "http://109.71.15.209:8118",
+        "http://185.189.199.75:23500",
+        "http://161.35.70.132:8080"
+    ]
     
-    # Direct ExpressVPN proxy
-    proxy_url = f"https://{vpn_user}:{vpn_pass}@proxy.express-vpn.com:443"
-    
-    try:
-        # Set proxy configuration
-        os.environ['HTTP_PROXY'] = proxy_url
-        os.environ['HTTPS_PROXY'] = proxy_url
-        
-        # Test connection
-        test = requests.get('https://api.binance.com/api/v3/ping', 
-                          proxies={'http': proxy_url, 'https': proxy_url}, 
-                          timeout=10,
-                          verify=True)
-        
-        if test.status_code == 200:
-            st.sidebar.success("VPN Connected")
-            return True
+    for proxy in proxies:
+        try:
+            # Test connection
+            test = requests.get('https://api.binance.com/api/v3/ping', 
+                              proxies={
+                                  'http': proxy,
+                                  'https': proxy
+                              }, 
+                              timeout=10,
+                              verify=True)
             
-    except Exception as e:
-        st.sidebar.error(f"VPN Connection Failed: {str(e)}")
-        
+            if test.status_code == 200:
+                os.environ['HTTP_PROXY'] = proxy
+                os.environ['HTTPS_PROXY'] = proxy
+                st.sidebar.success(f"Connected via proxy")
+                return True
+                
+        except Exception as e:
+            st.sidebar.warning(f"Failed to connect: {str(e)}")
+            continue
+            
+    st.sidebar.error("Failed to connect to any proxy")
     return False
 
 def save_trading_params(symbol: str, interval: str):
