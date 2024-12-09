@@ -47,19 +47,22 @@ def configure_network():
 
 def load_initial_data():
     """Load initial configuration data into session state."""
+    # Load config.json into session state
     if "config" not in st.session_state:
         if os.path.exists(CONFIG_FILE):
             with open(CONFIG_FILE, "r") as f:
                 st.session_state.config = json.load(f)
         else:
             st.session_state.config = {"data_path": ""}  # Default value
-    
+
+    # Load trading_config.json into session state
     if "trading_params" not in st.session_state:
         if os.path.exists(TRADING_CONFIG):
             with open(TRADING_CONFIG, "r") as f:
                 st.session_state.trading_params = json.load(f)
         else:
             st.session_state.trading_params = {"symbol": "PEPEUSDT", "interval": "4h"}
+
 
 
 def load_trading_params():
@@ -84,15 +87,15 @@ def load_trading_params():
     return st.session_state.trading_params
 
 def save_trading_params(symbol: str, interval: str):
-    """Save trading parameters in session state and update trading_config.json."""
+    """Save trading parameters in session state."""
     st.session_state.trading_params = {
         'symbol': symbol.upper(),
         'interval': interval
     }
-    
-    # Update the file for initial defaults (if needed for future runs)
+
+    # Optional: Write to file for debugging or local runs
     try:
-        with open(TRADING_CONFIG, 'w') as f:
+        with open(TRADING_CONFIG, "w") as f:
             json.dump(st.session_state.trading_params, f, indent=4)
         st.sidebar.success("Trading parameters saved successfully!")
     except Exception as e:
@@ -101,7 +104,7 @@ def save_trading_params(symbol: str, interval: str):
 
 
 def save_latest_file_path():
-    """Save the path of the most recent CSV file in session state and update config.json."""
+    """Save the path of the most recent CSV file in session state."""
     if not os.path.exists(DATA_FOLDER):
         st.error("Data folder not found.")
         return None
@@ -114,17 +117,19 @@ def save_latest_file_path():
     latest_file = max(files, key=lambda x: os.path.getmtime(os.path.join(DATA_FOLDER, x)))
     latest_path = os.path.join(DATA_FOLDER, latest_file)
 
-    st.session_state.config['data_path'] = latest_path  # Update session state
-    
-    # Update the file for initial defaults (if needed for future runs)
+    # Update session state
+    st.session_state.config["data_path"] = latest_path
+
+    # Optional: Write to file for debugging or local runs
     try:
-        with open(CONFIG_FILE, 'w') as f:
+        with open(CONFIG_FILE, "w") as f:
             json.dump(st.session_state.config, f, indent=4)
         st.success(f"Data path updated: {latest_path}")
         return latest_path
     except Exception as e:
         st.error(f"Failed to update config.json: {str(e)}")
         return None
+
 
 
 
@@ -218,23 +223,23 @@ def main():
 
     # Sidebar: Trading Parameters Section
     st.sidebar.header("Currency-Interval")
-    
+
     # Get current trading parameters
     current_params = st.session_state.trading_params
 
     # Sidebar: Symbol Input
     symbol = st.sidebar.text_input(
         "Trading Pair",
-        value=current_params['symbol'],
+        value=current_params["symbol"],
         help="Enter the trading pair (e.g., PEPEUSDT, BTCUSDT)"
     )
 
     # Sidebar: Interval Selection
-    intervals = ['1h', '4h', '1d', '7d']
+    intervals = ["1h", "4h", "1d", "7d"]
     interval = st.sidebar.selectbox(
         "Timeframe",
         intervals,
-        index=intervals.index(current_params['interval']),
+        index=intervals.index(current_params["interval"]),
         help="Select the timeframe for analysis"
     )
 
@@ -248,7 +253,7 @@ def main():
     # Column 1: Data Collection Section
     with col1:
         st.markdown("### Data Collection")
-        
+
         # Display current data status
         st.code(check_data_status())
 
@@ -291,4 +296,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
