@@ -383,5 +383,6 @@ This comprehensive strategy ensures you capitalize on immediate opportunities wh
         except Exception as e:
             st.error(f"Error generating GPT analysis: {str(e)}")
 
+
 if __name__ == "__main__":
     main()
