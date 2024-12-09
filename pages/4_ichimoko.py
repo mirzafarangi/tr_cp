@@ -266,6 +266,146 @@ class IchimokuDashboard:
             df_1m = analyzer.calculate_ichimoku("1M")
             st.write("Long-term Confluence (1w & 1M):")
             st.write(analyzer.check_timeframe_confluence(df_1w, df_1m))
+
+
+            # Add this right after the confluence analysis section in the run_dashboard method:
+
+            # Educational Section
+            st.markdown("---")
+            st.header("Ichimoku Components Explained")
+            
+            latest = df.iloc[-1]  # Get latest values for dynamic content
+            
+            with st.expander("### 1. Tenkan-sen (Conversion Line)"):
+                st.markdown(f"""
+                **Current Value**: {latest['tenkan_sen']:.8f}
+                
+                **Definition**:
+                - Average of highest high and lowest low over last 9 periods
+                - Formula: (Highest High (9) + Lowest Low (9)) / 2
+                
+                **Purpose**:
+                - Reflects short-term trend direction
+                - Acts as a signal line for momentum and triggers potential entries
+                
+                **Interpretation**:
+                - If price is above Tenkan-sen → short-term trend is bullish
+                - If price is below Tenkan-sen → short-term trend is bearish
+                
+                **Use Cases**:
+                1. **Momentum Indicator**:
+                   - Sharp turns show acceleration/deceleration in trend
+                2. **Entry Signal**:
+                   - Bullish entry when crossing above Kijun-sen
+                """)
+            
+            with st.expander("### 2. Kijun-sen (Base Line)"):
+                st.markdown(f"""
+                **Current Value**: {latest['kijun_sen']:.8f}
+                
+                **Definition**:
+                - Average of highest high and lowest low over last 26 periods
+                - Formula: (Highest High (26) + Lowest Low (26)) / 2
+                
+                **Purpose**:
+                - Represents medium-term trend direction
+                - Serves as key support/resistance level and trailing stop
+                
+                **Interpretation**:
+                - Price above Kijun-sen → bullish momentum
+                - Price below Kijun-sen → bearish momentum
+                
+                **Use Cases**:
+                1. **Support/Resistance**:
+                   - Bounce from Kijun-sen confirms trend support
+                2. **Trailing Stop**:
+                   - Dynamic stop-loss adjustment in trends
+                """)
+            
+            with st.expander("### 3. Cloud Analysis"):
+                cloud_top = max(latest['senkou_span_a'], latest['senkou_span_b'])
+                cloud_bottom = min(latest['senkou_span_a'], latest['senkou_span_b'])
+                
+                st.markdown(f"""
+                **Cloud Top (Senkou Span A)**: {latest['senkou_span_a']:.8f}
+                **Cloud Bottom (Senkou Span B)**: {latest['senkou_span_b']:.8f}
+                
+                **Cloud Thickness**: {latest['cloud_thickness']:.8f}
+                **Price-Cloud Distance**: {latest['price_cloud_distance']:.8f}
+                **Flat Kumo**: {'Yes' if latest['flat_kumo'] else 'No'}
+                
+                **Purpose**:
+                - Forms trading cloud (Kumo)
+                - Indicates dynamic support/resistance zones
+                - Projects future trend direction
+                
+                **Interpretation**:
+                - Thick cloud ({latest['cloud_thickness']:.8f}) → Strong support/resistance
+                - Current price vs cloud: {latest['price_cloud_distance']:.8f} → 
+                  {"Bullish momentum" if latest['price_cloud_distance'] > 0 else "Bearish pressure"}
+                """)
+            
+            with st.expander("### Trading Scenarios"):
+                # Determine current scenario
+                price = latest['close']
+                tenkan = latest['tenkan_sen']
+                kijun = latest['kijun_sen']
+                
+                if price > cloud_top and tenkan > kijun:
+                    scenario = """
+                    **Current Scenario: Strong Bullish**
+                    - Price above cloud with momentum
+                    - Tenkan-sen above Kijun-sen
+                    
+                    **Suggested Actions**:
+                    - Look for pullbacks to Kijun-sen
+                    - Trail stops below Kijun-sen
+                    - Target next resistance levels
+                    """
+                elif price < cloud_bottom and tenkan < kijun:
+                    scenario = """
+                    **Current Scenario: Strong Bearish**
+                    - Price below cloud with downward momentum
+                    - Tenkan-sen below Kijun-sen
+                    
+                    **Suggested Actions**:
+                    - Watch for bounces to cloud bottom
+                    - Keep stops above cloud
+                    - Target previous support levels
+                    """
+                else:
+                    scenario = """
+                    **Current Scenario: Neutral/Consolidation**
+                    - Price near or inside cloud
+                    - Mixed indicator signals
+                    
+                    **Suggested Actions**:
+                    - Wait for clear breakout
+                    - Reduce position sizes
+                    - Focus on shorter timeframes
+                    """
+                
+                st.markdown(scenario)
+                
+                st.markdown("""
+                **Key Scenario Patterns**:
+                
+                1. **Reversal Setup**:
+                   - Thin cloud
+                   - Price testing cloud edge
+                   - Tenkan-sen momentum shift
+                
+                2. **Trend Continuation**:
+                   - Thick cloud
+                   - Price well outside cloud
+                   - Strong Tenkan-Kijun alignment
+                
+                3. **Consolidation Pattern**:
+                   - Price inside cloud
+                   - Flat Tenkan/Kijun
+                   - Reduced cloud thickness
+                """)
+                
             
         except Exception as e:
             st.error(f"Error in dashboard: {str(e)}")
