@@ -45,6 +45,22 @@ def configure_network():
         
     return False
 
+def load_initial_data():
+    """Load initial configuration data into session state."""
+    if "config" not in st.session_state:
+        if os.path.exists(CONFIG_FILE):
+            with open(CONFIG_FILE, "r") as f:
+                st.session_state.config = json.load(f)
+        else:
+            st.session_state.config = {"data_path": ""}  # Default value
+    
+    if "trading_params" not in st.session_state:
+        if os.path.exists(TRADING_CONFIG):
+            with open(TRADING_CONFIG, "r") as f:
+                st.session_state.trading_params = json.load(f)
+        else:
+            st.session_state.trading_params = {"symbol": "PEPEUSDT", "interval": "4h"}
+
 
 def load_trading_params():
     """Load trading parameters from config file"""
@@ -68,44 +84,48 @@ def load_trading_params():
     return st.session_state.trading_params
 
 def save_trading_params(symbol: str, interval: str):
-    """Save trading parameters to trading_config.json."""
-    config = {
+    """Save trading parameters in session state and update trading_config.json."""
+    st.session_state.trading_params = {
         'symbol': symbol.upper(),
         'interval': interval
     }
     
-    # Update session state
-    st.session_state.trading_params = config
-    
+    # Update the file for initial defaults (if needed for future runs)
     try:
         with open(TRADING_CONFIG, 'w') as f:
-            json.dump(config, f)
-        st.sidebar.success("Trading parameters updated in trading_config.json")
+            json.dump(st.session_state.trading_params, f, indent=4)
+        st.sidebar.success("Trading parameters saved successfully!")
     except Exception as e:
-        st.sidebar.error(f"Failed to save parameters: {str(e)}")
+        st.sidebar.error(f"Failed to save trading parameters: {str(e)}")
+
 
 
 def save_latest_file_path():
-    """Save the path of the most recent CSV file to config.json."""
+    """Save the path of the most recent CSV file in session state and update config.json."""
     if not os.path.exists(DATA_FOLDER):
+        st.error("Data folder not found.")
         return None
 
     files = [f for f in os.listdir(DATA_FOLDER) if f.endswith('.csv')]
     if not files:
+        st.error("No CSV files found in the data folder.")
         return None
 
     latest_file = max(files, key=lambda x: os.path.getmtime(os.path.join(DATA_FOLDER, x)))
     latest_path = os.path.join(DATA_FOLDER, latest_file)
 
-    # Write the latest data path to config.json
-    config = {'data_path': latest_path}
+    st.session_state.config['data_path'] = latest_path  # Update session state
+    
+    # Update the file for initial defaults (if needed for future runs)
     try:
         with open(CONFIG_FILE, 'w') as f:
-            json.dump(config, f)
+            json.dump(st.session_state.config, f, indent=4)
+        st.success(f"Data path updated: {latest_path}")
         return latest_path
     except Exception as e:
         st.error(f"Failed to update config.json: {str(e)}")
         return None
+
 
 
 def run_script(script_name: str, status_placeholder) -> None:
@@ -187,8 +207,11 @@ def main():
     # Set Streamlit page configuration
     st.set_page_config(page_title="Trading Control Panel", layout="wide")
 
+    # Load initial configuration data
+    load_initial_data()
+
     # Configure the network (e.g., VPN or proxy) at the start
-    network_status = configure_network()
+    configure_network()
 
     # Display the main header
     st.title("Trading Control Panel")
@@ -196,8 +219,8 @@ def main():
     # Sidebar: Trading Parameters Section
     st.sidebar.header("Currency-Interval")
     
-    # Load current trading parameters
-    current_params = load_trading_params()
+    # Get current trading parameters
+    current_params = st.session_state.trading_params
 
     # Sidebar: Symbol Input
     symbol = st.sidebar.text_input(
@@ -218,7 +241,6 @@ def main():
     # Sidebar: Save Parameters Button
     if st.sidebar.button("Save Parameters"):
         save_trading_params(symbol, interval)
-        st.sidebar.success("Trading parameters saved successfully!")
 
     # Main Layout: Two Columns
     col1, col2 = st.columns(2)
@@ -244,7 +266,7 @@ def main():
         if st.button("🔄 Update Path to Latest"):
             latest_path = save_latest_file_path()
             if latest_path:
-                st.success(f"Data path updated in config.json: {latest_path}")
+                st.success(f"Data path updated to: {latest_path}")
             else:
                 st.error("No data files found in the data folder.")
 
@@ -267,6 +289,6 @@ def main():
             st.switch_page("pages/4_ml.py")
 
 
-# Entry Point for the Script
 if __name__ == "__main__":
     main()
+
