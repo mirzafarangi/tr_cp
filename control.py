@@ -45,42 +45,42 @@ def configure_network():
         
     return False
 
+
+def load_trading_params():
+    """Load trading parameters from config file"""
+    # Initialize session state if not exists
+    if 'trading_params' not in st.session_state:
+        st.session_state.trading_params = {
+            'symbol': 'PEPEUSDT',
+            'interval': '4h'
+        }
+    
+    try:
+        if os.path.exists(TRADING_CONFIG):
+            with open(TRADING_CONFIG, 'r') as f:
+                params = json.load(f)
+                if 'symbol' in params and 'interval' in params:
+                    st.session_state.trading_params = params
+                    return params
+    except Exception as e:
+        st.sidebar.warning(f"Could not load trading parameters: {str(e)}")
+    
+    return st.session_state.trading_params
+
 def save_trading_params(symbol: str, interval: str):
     """Save trading parameters to config file"""
     config = {
         'symbol': symbol.upper(),
         'interval': interval
     }
-    with open(TRADING_CONFIG, 'w') as f:
-        json.dump(config, f)
-
-def load_trading_params():
-    """Load trading parameters from config file"""
-    try:
-        if os.path.exists(TRADING_CONFIG):
-            with open(TRADING_CONFIG, 'r') as f:
-                params = json.load(f)
-                # Validate loaded params
-                if 'symbol' in params and 'interval' in params:
-                    return params
-    except Exception as e:
-        st.sidebar.warning(f"Could not load trading parameters: {str(e)}")
+    # Update session state
+    st.session_state.trading_params = config
     
-    # Default values if file doesn't exist or is invalid
-    default_params = {
-        'symbol': 'PEPEUSDT',
-        'interval': '4h'
-    }
-    
-    # Save default params to file
     try:
-        os.makedirs(os.path.dirname(TRADING_CONFIG), exist_ok=True)
         with open(TRADING_CONFIG, 'w') as f:
-            json.dump(default_params, f)
+            json.dump(config, f)
     except Exception as e:
-        st.sidebar.warning(f"Could not save default parameters: {str(e)}")
-    
-    return default_params  # Default values
+        st.sidebar.warning(f"Could not save parameters: {str(e)}")
 
 def save_latest_file_path():
     """Save the path of the most recent CSV file to config"""
@@ -193,20 +193,27 @@ def main():
                                 value=current_params['symbol'],
                                 help="Enter trading pair (e.g., PEPEUSDT, ETHUSDT)")
     
+    # Trading Parameters Section
+    st.sidebar.header("Currency-Interval")
+    
+    # Load current parameters
+    current_params = load_trading_params()
+    
+    # Symbol input
+    symbol = st.sidebar.text_input(
+        "Trading Pair", 
+        value=st.session_state.trading_params['symbol'],
+        help="Enter trading pair (e.g., PEPEUSDT, ETHUSDT)"
+    )
+    
     # Interval selection
     intervals = ['1h', '4h', '1d', '7d']
     interval = st.sidebar.selectbox(
         "Timeframe",
         intervals,
-        index=intervals.index(current_params['interval']),  # This should now correctly select '4h'
+        index=intervals.index(st.session_state.trading_params['interval']),
         help="Select timeframe for analysis"
     )
-    current_params = load_trading_params()
-    st.sidebar.write("Debug - Current params:", current_params)  # Add this line temporarily
-    # Save parameters button
-    if st.sidebar.button("Save Parameters"):
-        save_trading_params(symbol, interval)
-        st.sidebar.success("Parameters saved!")
     
     # Data collection section
     col1, col2 = st.columns(2)
