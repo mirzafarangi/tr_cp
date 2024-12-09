@@ -118,9 +118,15 @@ def main():
     # Process and display the last 4H data
     if df is not None:
         last_4h, json_last_4h = get_last_k_rows_with_json(df, 1)
+
         st.subheader(f"Last {timeframe.upper()} Data")
-        # Display the table with better formatting for small numbers
-        st.dataframe(last_4h.style.format("{:.12f}"))
+
+        # Ensure numerical values are rounded for display
+        try:
+            st.dataframe(last_4h.round(12))  # Safely round values for display
+        except Exception as e:
+            st.error(f"Error displaying table: {str(e)}")
+            return
 
         # Extract specific sections for detailed analysis
         try:
