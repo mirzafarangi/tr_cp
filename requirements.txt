@@ -3,4 +3,4 @@ requests>=2.26.0
 pandas
 numpy
 ta
-openai
+openai>=1.0.0
