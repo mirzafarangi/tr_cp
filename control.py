@@ -284,14 +284,17 @@ def main():
         if st.button("Entry Models"):
             st.switch_page("pages/1_entry_models.py")
 
+        if st.button("LLM"):
+            st.switch_page("pages/2_llm.py")
+
         if st.button("Candle View"):
-            st.switch_page("pages/2_cv.py")
+            st.switch_page("pages/3_cv.py")
 
         if st.button("Feature Analysis"):
-            st.switch_page("pages/3_fa.py")
+            st.switch_page("pages/4_fa.py")
 
         if st.button("Machine Learning (ML)"):
-            st.switch_page("pages/4_ml.py")
+            st.switch_page("pages/5_ml.py")
 
 
 if __name__ == "__main__":
