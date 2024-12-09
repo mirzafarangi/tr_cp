@@ -30,6 +30,66 @@ class CandlestickAnalyzer:
         self.patterns = []
         self.liquidity_zones = []
         
+    def _create_engulfing_pattern(self, idx: int, window: pd.DataFrame) -> PricePattern:
+        """Create engulfing pattern object"""
+        current = window.iloc[-1]
+        pattern_type = 'bullish' if current['close'] > current['open'] else 'bearish'
+        
+        return PricePattern(
+            name="Engulfing",
+            start_idx=idx-1,
+            end_idx=idx,
+            pattern_type=pattern_type,
+            confidence=0.85,
+            description=f"{pattern_type.capitalize()} engulfing pattern detected"
+        )
+    
+    def _create_pin_pattern(self, idx: int, candle: pd.Series) -> PricePattern:
+        """Create pin bar pattern object"""
+        body = abs(candle['close'] - candle['open'])
+        upper_wick = candle['high'] - max(candle['open'], candle['close'])
+        lower_wick = min(candle['open'], candle['close']) - candle['low']
+        
+        pattern_type = 'bullish' if lower_wick > upper_wick else 'bearish'
+        
+        return PricePattern(
+            name="Pin Bar",
+            start_idx=idx,
+            end_idx=idx,
+            pattern_type=pattern_type,
+            confidence=0.75,
+            description=f"{pattern_type.capitalize()} pin bar detected"
+        )
+    
+    def _create_liquidity_sweep(self, idx: int, window: pd.DataFrame) -> LiquidityZone:
+        """Create liquidity sweep zone object"""
+        current = window.iloc[-1]
+        
+        return LiquidityZone(
+            price_level=current['high'] if current['close'] > current['open'] else current['low'],
+            zone_type='sweep',
+            strength=0.8,
+            description="Potential liquidity sweep zone"
+        )
+    
+    def _create_institutional_block(self, idx: int, window: pd.DataFrame) -> LiquidityZone:
+        """Create institutional block zone object"""
+        current = window.iloc[-1]
+        
+        return LiquidityZone(
+            price_level=current['close'],
+            zone_type='block',
+            strength=0.9,
+            description="Potential institutional order block"
+        )
+    
+    def _is_inside_bar(self, window: pd.DataFrame) -> bool:
+        current = window.iloc[-1]
+        previous = window.iloc[-2]
+        
+        return (current['high'] < previous['high'] and 
+                current['low'] > previous['low'])
+
     def identify_patterns(self) -> List[PricePattern]:
         """Identify candlestick patterns in the data"""
         patterns = []
@@ -61,70 +121,42 @@ class CandlestickAnalyzer:
         
         return patterns
     
-    def identify_liquidity_zones(self) -> List[LiquidityZone]:
-        """Identify potential liquidity zones"""
-        zones = []
-        window_size = 10
-        
-        for i in range(window_size, len(self.df)):
-            window = self.df.iloc[i-window_size:i]
+    def _add_patterns_to_chart(self, fig: go.Figure):
+        """Add pattern annotations to chart"""
+        for pattern in self.patterns:
+            pattern_color = 'green' if pattern.pattern_type == 'bullish' else 'red'
             
-            # Identify liquidity sweeps
-            if self._is_liquidity_sweep(window):
-                zone = self._create_liquidity_sweep(i, window)
-                zones.append(zone)
+            fig.add_shape(
+                type="rect",
+                x0=self.df['timestamp'].iloc[pattern.start_idx],
+                x1=self.df['timestamp'].iloc[pattern.end_idx],
+                y0=self.df['low'].iloc[pattern.start_idx:pattern.end_idx+1].min(),
+                y1=self.df['high'].iloc[pattern.start_idx:pattern.end_idx+1].max(),
+                line=dict(color=pattern_color, width=1),
+                fillcolor=pattern_color,
+                opacity=0.2,
+                row=1, col=1
+            )
+    
+    def _add_liquidity_zones_to_chart(self, fig: go.Figure):
+        """Add liquidity zone annotations to chart"""
+        for zone in self.liquidity_zones:
+            zone_color = 'blue' if zone.zone_type == 'sweep' else 'purple'
             
-            # Identify institutional blocks
-            if self._is_institutional_block(window):
-                zone = self._create_institutional_block(i, window)
-                zones.append(zone)
-        
-        return zones
-    
-    def _is_engulfing_pattern(self, window: pd.DataFrame) -> bool:
-        current = window.iloc[-1]
-        previous = window.iloc[-2]
-        
-        if current['close'] > current['open']:  # Bullish
-            return (current['open'] < previous['close'] and 
-                   current['close'] > previous['open'])
-        else:  # Bearish
-            return (current['open'] > previous['close'] and 
-                   current['close'] < previous['open'])
-    
-    def _is_pin_bar(self, candle: pd.Series) -> bool:
-        body = abs(candle['close'] - candle['open'])
-        upper_wick = candle['high'] - max(candle['open'], candle['close'])
-        lower_wick = min(candle['open'], candle['close']) - candle['low']
-        
-        return (upper_wick > body * 2) or (lower_wick > body * 2)
-    
-    def _is_liquidity_sweep(self, window: pd.DataFrame) -> bool:
-        """Detect potential liquidity sweeps"""
-        current_high = window.iloc[-1]['high']
-        current_low = window.iloc[-1]['low']
-        prev_high = window.iloc[:-1]['high'].max()
-        prev_low = window.iloc[:-1]['low'].min()
-        
-        volume_spike = window.iloc[-1]['volume'] > window['volume'].mean() * 1.5
-        
-        return ((current_high > prev_high or current_low < prev_low) and 
-                volume_spike)
-    
-    def _is_institutional_block(self, window: pd.DataFrame) -> bool:
-        """Detect potential institutional order blocks"""
-        current = window.iloc[-1]
-        
-        volume_significant = current['volume'] > window['volume'].mean() * 2
-        price_range = (current['high'] - current['low']) / current['low']
-        
-        return volume_significant and price_range < 0.01  # 1% range
+            fig.add_hline(
+                y=zone.price_level,
+                line_dash="dash",
+                line_color=zone_color,
+                opacity=0.5,
+                row=1, col=1
+            )
     
     def create_candlestick_chart(self) -> go.Figure:
         """Create main candlestick chart with patterns and zones"""
         # Create figure with secondary y-axis
-        fig = make_subplots(rows=2, cols=1, shared_xaxis=True, 
-                           vertical_spacing=0.03, 
+        fig = make_subplots(rows=2, cols=1, 
+                           shared_xaxes=True,
+                           vertical_spacing=0.03,
                            row_heights=[0.7, 0.3])
         
         # Add candlestick
@@ -149,9 +181,11 @@ class CandlestickAnalyzer:
         ), row=2, col=1)
         
         # Add patterns
+        self.patterns = self.identify_patterns()
         self._add_patterns_to_chart(fig)
         
         # Add liquidity zones
+        self.liquidity_zones = self.identify_liquidity_zones()
         self._add_liquidity_zones_to_chart(fig)
         
         # Update layout
@@ -167,15 +201,22 @@ class CandlestickAnalyzer:
     
     def create_technical_indicators_chart(self) -> go.Figure:
         """Create chart with technical indicators"""
-        fig = make_subplots(rows=4, cols=1, shared_xaxis=True,
+        fig = make_subplots(rows=4, cols=1, 
+                           shared_xaxes=True,
                            vertical_spacing=0.05,
                            row_heights=[0.4, 0.2, 0.2, 0.2])
         
-        # Add RSI
+        # Add RSIs
         fig.add_trace(go.Scatter(
             x=self.df['timestamp'],
             y=self.df['rsi_7'],
             name="RSI(7)"
+        ), row=2, col=1)
+        
+        fig.add_trace(go.Scatter(
+            x=self.df['timestamp'],
+            y=self.df['rsi_14'],
+            name="RSI(14)"
         ), row=2, col=1)
         
         # Add MACD
@@ -185,6 +226,12 @@ class CandlestickAnalyzer:
             name="MACD"
         ), row=3, col=1)
         
+        fig.add_trace(go.Scatter(
+            x=self.df['timestamp'],
+            y=self.df['signal'],
+            name="Signal"
+        ), row=3, col=1)
+        
         # Add Stochastic
         fig.add_trace(go.Scatter(
             x=self.df['timestamp'],
@@ -192,9 +239,26 @@ class CandlestickAnalyzer:
             name="Stoch Fast K"
         ), row=4, col=1)
         
+        fig.add_trace(go.Scatter(
+            x=self.df['timestamp'],
+            y=self.df['Stoch_Fast_D_scalping'],
+            name="Stoch Fast D"
+        ), row=4, col=1)
+        
+        # Add horizontal lines for RSI and Stochastic
+        fig.add_hline(y=70, line_dash="dash", line_color="red", row=2, col=1)
+        fig.add_hline(y=30, line_dash="dash", line_color="green", row=2, col=1)
+        fig.add_hline(y=80, line_dash="dash", line_color="red", row=4, col=1)
+        fig.add_hline(y=20, line_dash="dash", line_color="green", row=4, col=1)
+        
+        # Update layout
         fig.update_layout(
             title="Technical Indicators",
-            height=800
+            height=800,
+            showlegend=True,
+            yaxis2_title="RSI",
+            yaxis3_title="MACD",
+            yaxis4_title="Stochastic"
         )
         
         return fig
@@ -267,6 +331,9 @@ class TradingDashboard:
             
         except Exception as e:
             st.error(f"Error in dashboard: {str(e)}")
+            st.error(f"Error details: {type(e).__name__}")
+            import traceback
+            st.error(traceback.format_exc())
     
     def _display_trading_analysis(self, df: pd.DataFrame):
         """Display trading analysis and recommendations"""
