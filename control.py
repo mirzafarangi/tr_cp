@@ -182,24 +182,13 @@ def main():
     # Simple header
     st.title("Trading Control Panel")
     
-    # Trading Parameters Section
+    # Trading Parameters Section (only once!)
     st.sidebar.header("Currency-Interval")
     
-    # Load current parameters
+    # Load current parameters (only once!)
     current_params = load_trading_params()
     
-    # Symbol input
-    symbol = st.sidebar.text_input("Trading Pair", 
-                                value=current_params['symbol'],
-                                help="Enter trading pair (e.g., PEPEUSDT, ETHUSDT)")
-    
-    # Trading Parameters Section
-    st.sidebar.header("Currency-Interval")
-    
-    # Load current parameters
-    current_params = load_trading_params()
-    
-    # Symbol input
+    # Symbol input (only once!)
     symbol = st.sidebar.text_input(
         "Trading Pair", 
         value=st.session_state.trading_params['symbol'],
@@ -214,6 +203,11 @@ def main():
         index=intervals.index(st.session_state.trading_params['interval']),
         help="Select timeframe for analysis"
     )
+    
+    # Save parameters button
+    if st.sidebar.button("Save Parameters"):
+        save_trading_params(symbol, interval)
+        st.sidebar.success("Parameters saved!")
     
     # Data collection section
     col1, col2 = st.columns(2)
