@@ -153,13 +153,13 @@ def launch_dashboard(script_name: str):
     subprocess.Popen([sys.executable, '-m', 'streamlit', 'run', script_name])
 
 def main():
-    st.set_page_config(page_title="Trading Control Panel", layout="wide")
+    st.set_page_config(page_title="TCP", layout="wide")
     
     # Add VPN configuration at the start
     configure_network()
     
     # Simple header
-    st.title("Control Panel")
+    st.title("Trading Control Panel")
     
     # Trading Parameters Section
     st.sidebar.header("Currency-Interval")
@@ -215,18 +215,18 @@ def main():
         st.markdown("### Analysis")
         st.markdown("Choose an analysis to launch:")
         
-        # Dashboard launch buttons
-        if st.button("📊 Risk 1"):
-            launch_dashboard("risk.py")
-            st.info("Risk 1 launched in new window")
-            
-        if st.button("📉 Risk 2"):
-            launch_dashboard("risk_minimal.py")
-            st.info("Risk 2 launched in new window")
-            
-        if st.button("📈 Entry Models"):
-            launch_dashboard("entry_models.py")
-            st.info("Entry Models launched in new window")
+        # Dashboard navigation buttons
+        if st.button("Entry Models"):
+            st.switch_page("pages/1_entry_models.py")
+        
+        if st.button("Candle View"):
+            st.switch_page("pages/2_cv.py")
+        
+        if st.button("Feature Analysis"):
+            st.switch_page("pages/3_fa.py")
+        
+        if st.button("ML"):
+            st.switch_page("pages/4_ml.py")
 
 if __name__ == "__main__":
     main()
