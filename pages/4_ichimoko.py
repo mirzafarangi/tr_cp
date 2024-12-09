@@ -60,17 +60,15 @@ class IchimokuAnalyzer:
         # Calculate Chikou Span
         df['chikou_span'] = df['close'].shift(-settings.kijun_period)
         
-        # Calculate cloud metrics
-        df['cloud_thickness'] = abs(df['senkou_span_a'] - df['senkou_span_b']).fillna(0)
-        df['price_cloud_distance'] = (df['close'] - ((df['senkou_span_a'] + df['senkou_span_b']) / 2)).fillna(0)
+        # Calculate cloud thickness
+        df['cloud_thickness'] = abs(df['senkou_span_a'] - df['senkou_span_b'])
+        
+        # Calculate distance from cloud
+        df['price_cloud_distance'] = df['close'] - df[['senkou_span_a', 'senkou_span_b']].mean(axis=1)
         
         # Identify flat Kumo areas (Span B)
         span_b_std = df['senkou_span_b'].rolling(window=5).std()
-        df['flat_kumo'] = (span_b_std < span_b_std.quantile(0.2)).fillna(False)
-        
-        # Forward fill NaN values in Ichimoku components
-        ichimoku_columns = ['tenkan_sen', 'kijun_sen', 'senkou_span_a', 'senkou_span_b', 'chikou_span']
-        df[ichimoku_columns] = df[ichimoku_columns].fillna(method='ffill')
+        df['flat_kumo'] = span_b_std < span_b_std.quantile(0.2)
         
         return df
     
@@ -269,144 +267,208 @@ class IchimokuDashboard:
             st.write("Long-term Confluence (1w & 1M):")
             st.write(analyzer.check_timeframe_confluence(df_1w, df_1m))
 
-
-            # Add this right after the confluence analysis section in the run_dashboard method:
-
-            # Educational Section
             st.markdown("---")
-            st.header("Ichimoku Components Explained")
             
-            latest = df.iloc[-1]  # Get latest values for dynamic content
+            with st.expander("Understanding Ichimoku Components", expanded=False):
+                st.markdown("""### **1. Tenkan-sen (Conversion Line): `0.00002487`**
+
+- **Definition**:Tenkan-sen=2Highest High (9)+Lowest Low (9)
+    
+    The average of the highest high and lowest low over the last **9 periods** (or a custom period).
+    
+    Tenkan-sen=Highest High (9)+Lowest Low (9)2
+    
+- **Purpose**:
+    - Reflects **short-term trend direction**.
+    - Acts as a **signal line** for momentum and triggers potential entries.
+- **Interpretation**:
+    - If the price is **above Tenkan-sen**, the short-term trend is bullish.
+    - If the price is **below Tenkan-sen**, the short-term trend is bearish.
+- **Use Cases**:
+    1. **Momentum Indicator**:
+        - When Tenkan-sen turns upwards or downwards sharply, it shows acceleration or deceleration in the trend.
+    2. **Entry Signal**:
+        - If Tenkan-sen crosses above Kijun-sen, it signals a bullish entry.
+
+### **2. Kijun-sen (Base Line): `0.00002530`**
+
+- **Definition**:Kijun-sen=2Highest High (26)+Lowest Low (26)
+    
+    The average of the highest high and lowest low over the last **26 periods** (or a custom period).
+    
+    Kijun-sen=Highest High (26)+Lowest Low (26)2
+    
+- **Purpose**:
+    - Represents **medium-term trend direction**.
+    - Serves as a **key support/resistance level** and trailing stop.
+- **Interpretation**:
+    - Price **above Kijun-sen** suggests bullish momentum.
+    - Price **below Kijun-sen** suggests bearish momentum.
+- **Use Cases**:
+    1. **Support/Resistance**:
+        - If price retraces to Kijun-sen and bounces, it’s a confirmation of support in a bullish trend.
+    2. **Trailing Stop**:
+        - Use Kijun-sen to dynamically adjust stop-loss levels in trending markets.
+
+---
+
+### **3. Cloud Top (Senkou Span A): `0.00002719`**
+
+- **Definition**:Senkou Span A=2Tenkan-sen+Kijun-sen
+    
+    The average of Tenkan-sen and Kijun-sen, plotted **26 periods ahead**.
+    
+    Senkou Span A=Tenkan-sen+Kijun-sen2
+    
+- **Purpose**:
+    - Forms the **upper boundary of the Kumo (cloud)**.
+    - Indicates **dynamic resistance** in bearish trends and **dynamic support** in bullish trends.
+- **Interpretation**:
+    - If price is **above the Cloud Top**, the trend is bullish.
+    - If price is **below the Cloud Top**, it may encounter resistance.
+- **Use Cases**:
+    1. **Resistance Zone**:
+        - Price approaching the Cloud Top from below often stalls or reverses due to resistance.
+    2. **Reversal Signal**:
+        - A break above the Cloud Top can signify a shift from bearish to bullish momentum.
+
+---
+
+### **4. Cloud Bottom (Senkou Span B): `0.00002704`**
+
+- **Definition**:Senkou Span B=2Highest High (52)+Lowest Low (52)
+    
+    The average of the highest high and lowest low over the last **52 periods**, plotted **26 periods ahead**.
+    
+    Senkou Span B=Highest High (52)+Lowest Low (52)2
+    
+- **Purpose**:
+    - Forms the **lower boundary of the Kumo (cloud)**.
+    - Represents stronger and longer-term support/resistance.
+- **Interpretation**:
+    - Price **above Cloud Bottom** indicates support.
+    - Price **below Cloud Bottom** suggests further bearish pressure.
+- **Use Cases**:
+    1. **Support Zone**:
+        - When price bounces off the Cloud Bottom, it confirms strong support in bullish trends.
+    2. **Continuation Signal**:
+        - Price staying between the Cloud Bottom and Cloud Top indicates indecision but often trends persist.
+
+---
+
+### **5. Cloud Thickness: `0.00000015`**
+
+- **Definition**:Cloud Thickness=Senkou Span A−Senkou Span B
+    
+    The difference between Senkou Span A and Senkou Span B.
+    
+    Cloud Thickness=Senkou Span A−Senkou Span B
+    
+- **Purpose**:
+    - Measures **strength of the Kumo** as support or resistance.
+    - Thick clouds = Strong barriers. Thin clouds = Easier breakouts.
+- **Interpretation**:
+    - **Thin Cloud**: Price can easily break through, signaling weaker trends.
+    - **Thick Cloud**: Acts as a strong support or resistance zone.
+- **Use Cases**:
+    1. **Breakout Scenarios**:
+        - Price breaking a thin cloud is more reliable for reversals.
+    2. **Trend Strength**:
+        - In trending markets, a thick cloud reinforces the prevailing trend.
+
+---
+
+### **6. Price-Cloud Distance: `0.00000092`**
+
+- **Definition**:Price-Cloud Distance=Current Price−Nearest Edge of the Cloud
+    
+    The distance between the current price and the nearest edge of the Kumo.
+    
+    Price-Cloud Distance=Current Price−Nearest Edge of the Cloud
+    
+- **Purpose**:
+    - Indicates how overextended or close price is to key support/resistance zones.
+- **Interpretation**:
+    - **Positive Distance**: Price is above the cloud → Strong bullish momentum.
+    - **Negative Distance**: Price is below the cloud → Bearish momentum.
+- **Use Cases**:
+    1. **Overextension Detection**:
+        - If price is far from the cloud, expect a pullback or consolidation.
+    2. **Entry Confirmation**:
+        - Enter trades when price closes near the cloud edge and bounces in the trend’s direction.
+
+---
+
+### **7. Flat Kumo: `No`**
+
+- **Definition**:
+    
+    Flat Kumo occurs when Senkou Span B is flat (unchanging for several periods).
+    
+- **Purpose**:
+    - Represents **price equilibrium** and strong support/resistance.
+- **Interpretation**:
+    - Flat Kumo acts as a magnet for price; it tends to revisit these levels.
+- **Use Cases**:
+    1. **Reversal Signals**:
+        - Price approaching a flat Kumo from above may reverse (support).
+    2. **Pullback Opportunities**:
+        - Look for price retracements to flat Kumo zones for better entry points.
+
+---
+
+### **Scenarios and Interpretations**
+
+### **Scenario 1: Reversal Opportunity**
+
+- **Variables**:
+    - Tenkan-sen: Rising.
+    - Kijun-sen: Flat.
+    - Cloud Thickness: Thin.
+    - Price-Cloud Distance: Slightly negative.
+- **Interpretation**:
+    
+    Price is testing resistance (cloud edge), but the thin Kumo suggests a potential breakout. A rising Tenkan-sen confirms bullish momentum.
+    
+- **Action**:
+    - **Enter long** if price closes above the cloud.
+    - **Stop-loss** below Kijun-sen.
+
+---
+
+### **Scenario 2: Trending Market**
+
+- **Variables**:
+    - Tenkan-sen > Kijun-sen.
+    - Cloud Top > Cloud Bottom (bullish cloud).
+    - Price far above cloud (positive Price-Cloud Distance).
+    - Cloud Thickness: Thick.
+- **Interpretation**:
+    
+    Strong bullish trend, with the cloud acting as robust support.
+    
+- **Action**:
+    - Use Kijun-sen for pullback entries.
+    - Trail stop below Kijun-sen to lock profits.
+
+---
+
+### **Scenario 3: Bearish Rejection**
+
+- **Variables**:
+    - Tenkan-sen < Kijun-sen.
+    - Price inside the cloud.
+    - Cloud Thickness: Moderate.
+    - Price-Cloud Distance: Neutral.
+- **Interpretation**:
+    
+    Bearish rejection likely as price struggles to exit the cloud.
+    
+- **Action**:
+    - **Enter short** on confirmation of a bearish candlestick close below the cloud.
+    - Target the next support zone.""")
+
             
-            with st.expander("### 1. Tenkan-sen (Conversion Line)"):
-                st.markdown(f"""
-                **Current Value**: {latest['tenkan_sen']:.8f}
-                
-                **Definition**:
-                - Average of highest high and lowest low over last 9 periods
-                - Formula: (Highest High (9) + Lowest Low (9)) / 2
-                
-                **Purpose**:
-                - Reflects short-term trend direction
-                - Acts as a signal line for momentum and triggers potential entries
-                
-                **Interpretation**:
-                - If price is above Tenkan-sen → short-term trend is bullish
-                - If price is below Tenkan-sen → short-term trend is bearish
-                
-                **Use Cases**:
-                1. **Momentum Indicator**:
-                   - Sharp turns show acceleration/deceleration in trend
-                2. **Entry Signal**:
-                   - Bullish entry when crossing above Kijun-sen
-                """)
-            
-            with st.expander("### 2. Kijun-sen (Base Line)"):
-                st.markdown(f"""
-                **Current Value**: {latest['kijun_sen']:.8f}
-                
-                **Definition**:
-                - Average of highest high and lowest low over last 26 periods
-                - Formula: (Highest High (26) + Lowest Low (26)) / 2
-                
-                **Purpose**:
-                - Represents medium-term trend direction
-                - Serves as key support/resistance level and trailing stop
-                
-                **Interpretation**:
-                - Price above Kijun-sen → bullish momentum
-                - Price below Kijun-sen → bearish momentum
-                
-                **Use Cases**:
-                1. **Support/Resistance**:
-                   - Bounce from Kijun-sen confirms trend support
-                2. **Trailing Stop**:
-                   - Dynamic stop-loss adjustment in trends
-                """)
-            
-            with st.expander("### 3. Cloud Analysis"):
-                cloud_top = max(latest['senkou_span_a'], latest['senkou_span_b'])
-                cloud_bottom = min(latest['senkou_span_a'], latest['senkou_span_b'])
-                
-                st.markdown(f"""
-                **Cloud Top (Senkou Span A)**: {latest['senkou_span_a']:.8f}
-                **Cloud Bottom (Senkou Span B)**: {latest['senkou_span_b']:.8f}
-                
-                **Cloud Thickness**: {latest['cloud_thickness']:.8f}
-                **Price-Cloud Distance**: {latest['price_cloud_distance']:.8f}
-                **Flat Kumo**: {'Yes' if latest['flat_kumo'] else 'No'}
-                
-                **Purpose**:
-                - Forms trading cloud (Kumo)
-                - Indicates dynamic support/resistance zones
-                - Projects future trend direction
-                
-                **Interpretation**:
-                - Thick cloud ({latest['cloud_thickness']:.8f}) → Strong support/resistance
-                - Current price vs cloud: {latest['price_cloud_distance']:.8f} → 
-                  {"Bullish momentum" if latest['price_cloud_distance'] > 0 else "Bearish pressure"}
-                """)
-            
-            with st.expander("### Trading Scenarios"):
-                # Determine current scenario
-                price = latest['close']
-                tenkan = latest['tenkan_sen']
-                kijun = latest['kijun_sen']
-                
-                if price > cloud_top and tenkan > kijun:
-                    scenario = """
-                    **Current Scenario: Strong Bullish**
-                    - Price above cloud with momentum
-                    - Tenkan-sen above Kijun-sen
-                    
-                    **Suggested Actions**:
-                    - Look for pullbacks to Kijun-sen
-                    - Trail stops below Kijun-sen
-                    - Target next resistance levels
-                    """
-                elif price < cloud_bottom and tenkan < kijun:
-                    scenario = """
-                    **Current Scenario: Strong Bearish**
-                    - Price below cloud with downward momentum
-                    - Tenkan-sen below Kijun-sen
-                    
-                    **Suggested Actions**:
-                    - Watch for bounces to cloud bottom
-                    - Keep stops above cloud
-                    - Target previous support levels
-                    """
-                else:
-                    scenario = """
-                    **Current Scenario: Neutral/Consolidation**
-                    - Price near or inside cloud
-                    - Mixed indicator signals
-                    
-                    **Suggested Actions**:
-                    - Wait for clear breakout
-                    - Reduce position sizes
-                    - Focus on shorter timeframes
-                    """
-                
-                st.markdown(scenario)
-                
-                st.markdown("""
-                **Key Scenario Patterns**:
-                
-                1. **Reversal Setup**:
-                   - Thin cloud
-                   - Price testing cloud edge
-                   - Tenkan-sen momentum shift
-                
-                2. **Trend Continuation**:
-                   - Thick cloud
-                   - Price well outside cloud
-                   - Strong Tenkan-Kijun alignment
-                
-                3. **Consolidation Pattern**:
-                   - Price inside cloud
-                   - Flat Tenkan/Kijun
-                   - Reduced cloud thickness
-                """)
                 
             
         except Exception as e:
