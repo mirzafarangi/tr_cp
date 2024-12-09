@@ -2,11 +2,15 @@ import streamlit as st
 import pandas as pd
 import os
 import openai
+from dotenv import load_dotenv
+
+# Load environment variables if running locally
+load_dotenv()
 
 # Ensure Pandas displays small numbers correctly
 pd.options.display.float_format = '{:.12f}'.format
 
-# Set OpenAI API key from Streamlit secrets
+# Load OpenAI API Key
 try:
     openai.api_key = st.secrets["OPENAI_API_KEY"]
 except KeyError:
@@ -15,24 +19,13 @@ except KeyError:
 
 # Constants
 DATA_FOLDER = "data"
-
-def get_last_k_rows_with_json(df, k):
-    """Returns the last k rows of a DataFrame as both a clean table and a JSON object."""
-    if k <= 0:
-        raise ValueError("k must be greater than 0")
-    if df is None or df.empty:
-        raise ValueError("The input DataFrame is empty or None.")
-    last_k_rows = df.tail(k)
-    clean_table = last_k_rows.reset_index(drop=True)
-    json_output = clean_table.to_json(orient="records", date_format="iso")
-    return clean_table, json_output
-
-required_columns = [
+REQUIRED_COLUMNS = [
     'rsi_14', 'histogram', 'ADX_swing', 'Stoch_Slow_K_14_3_3_swing',
     'current_price', 'atr', 'EMA50_swing', 'high', 'low', 'close',
     'VWAP_scalping', 'EMA21_scalping', 'tenkan_sen', 'kijun_sen'
 ]
 
+# Utility Functions
 def load_latest_file():
     """Load the latest CSV file based on the last modified time."""
     if not os.path.exists(DATA_FOLDER):
@@ -48,17 +41,18 @@ def load_latest_file():
 def read_csv_file(file_path):
     """Read a CSV file into a DataFrame."""
     try:
-        df = pd.read_csv(file_path)
-        return df
+        return pd.read_csv(file_path)
     except Exception as e:
         st.error(f"Error reading file {file_path}: {str(e)}")
         return None
 
 def ensure_columns_and_calculate_indexes(df):
     """Ensure necessary columns are present and calculate new indexes."""
-    for col in required_columns:
+    for col in REQUIRED_COLUMNS:
         if col not in df.columns:
             raise ValueError(f"Missing required column: {col}")
+
+    # Calculate custom trading indexes
     df['MCI'] = ((df['rsi_14'] - 50) / 50 + (df['Stoch_Slow_K_14_3_3_swing'] - 50) / 50 + df['histogram']) * df['ADX_swing']
     df['TMI'] = (df['rsi_14'] / 100) * df['ADX_swing'] * ((df['current_price'] - df['EMA50_swing']) / df['EMA50_swing'])
     df['VAMO'] = (df['rsi_14'] - 50) * (df['current_price'] / df['atr'])
@@ -84,8 +78,7 @@ def generate_gpt_analysis(report_text):
     """Generate an analysis using OpenAI's GPT model."""
     base_prompt = """
     You are a professional trading assistant skilled in swing and scalping trading and analyzing technical analysis reports for cryptocurrencies.
-    The user will provide data from their trading tools for specific coins and timeframes. Your role is to analyze this
-    data, provide actionable insights, analyze price action, and make recommendations on entry, stop-loss, and take-profit points.
+    Analyze the provided data, and give actionable insights, including entry, stop-loss, and take-profit recommendations.
     """
     try:
         response = openai.ChatCompletion.create(
@@ -100,12 +93,13 @@ def generate_gpt_analysis(report_text):
     except openai.error.OpenAIError as e:
         return f"Error generating GPT analysis: {str(e)}"
 
+# Main Streamlit App
 def main():
     st.set_page_config(page_title="LLM Trading Insights", layout="wide")
     st.title("LLM Trading Insights")
-    st.markdown("Analysis & Interpretation")
-    st.write("Secrets available:", st.secrets)
+    st.markdown("Analyze trading data and generate actionable insights using GPT-powered AI.")
 
+    # Load and preprocess data
     latest_file = load_latest_file()
     if not latest_file:
         return
@@ -121,19 +115,15 @@ def main():
         st.error(f"Data processing error: {str(e)}")
         return
 
+    # Select timeframe for analysis
     timeframe = st.sidebar.selectbox("Timeframe", ["4h", "1d", "7d", "30d"], index=0)
-    try:
-        last_4h, json_last_4h = get_last_k_rows_with_json(df, 1)
-        st.subheader(f"Last {timeframe.upper()} Data")
-        st.dataframe(last_4h.round(12))
-    except ValueError as e:
-        st.error(f"Data retrieval error: {str(e)}")
-        return
+    last_4h, json_last_4h = df.tail(1), df.tail(1).to_json(orient="records")
+    st.subheader(f"Last {timeframe.upper()} Data")
+    st.dataframe(last_4h)
 
+    # Generate GPT Analysis
     if st.button("Generate GPT Analysis"):
-
-        try:
-            report_text = f"""
+        report_text = f"""
             This is the last {timeframe} candle data of PEPEUSDT: {json_last_4h}.
             Give me a clean, complete, comprehensive analysis and interpretation, and concrete examples for entry, take-profit, stop-loss points, 
             specially regarding these sections of my data: {last_4h_index}, {other_index}. The report should looks like this example ---Comprehensive Analysis and Strategy
@@ -269,11 +259,9 @@ Stop Loss: 0.00002000.
 Targets: 0.00003169 and 0.000035.
 This comprehensive strategy ensures you capitalize on immediate opportunities while aligning with broader market trends.---
             """
-            analysis = generate_gpt_analysis(report_text)
-            st.subheader("LLM Trading Insights")
-            st.markdown(analysis)
-        except Exception as e:
-            st.error(f"Error generating GPT analysis: {str(e)}")
+        analysis = generate_gpt_analysis(report_text)
+        st.subheader("GPT Analysis Report")
+        st.markdown(analysis)
 
 if __name__ == "__main__":
     main()
