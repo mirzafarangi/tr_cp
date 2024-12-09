@@ -68,40 +68,48 @@ def load_trading_params():
     return st.session_state.trading_params
 
 def save_trading_params(symbol: str, interval: str):
-    """Save trading parameters to config file"""
+    """Save trading parameters to trading_config.json."""
     config = {
         'symbol': symbol.upper(),
         'interval': interval
     }
+    
     # Update session state
     st.session_state.trading_params = config
     
     try:
         with open(TRADING_CONFIG, 'w') as f:
             json.dump(config, f)
+        st.sidebar.success("Trading parameters updated in trading_config.json")
     except Exception as e:
-        st.sidebar.warning(f"Could not save parameters: {str(e)}")
+        st.sidebar.error(f"Failed to save parameters: {str(e)}")
+
 
 def save_latest_file_path():
-    """Save the path of the most recent CSV file to config"""
+    """Save the path of the most recent CSV file to config.json."""
     if not os.path.exists(DATA_FOLDER):
         return None
-    
+
     files = [f for f in os.listdir(DATA_FOLDER) if f.endswith('.csv')]
     if not files:
         return None
-    
+
     latest_file = max(files, key=lambda x: os.path.getmtime(os.path.join(DATA_FOLDER, x)))
     latest_path = os.path.join(DATA_FOLDER, latest_file)
-    
+
+    # Write the latest data path to config.json
     config = {'data_path': latest_path}
-    with open(CONFIG_FILE, 'w') as f:
-        json.dump(config, f)
-    
-    return latest_path
+    try:
+        with open(CONFIG_FILE, 'w') as f:
+            json.dump(config, f)
+        return latest_path
+    except Exception as e:
+        st.error(f"Failed to update config.json: {str(e)}")
+        return None
+
 
 def run_script(script_name: str, status_placeholder) -> None:
-    """Execute a Python script and display its output"""
+    """Execute a Python script and display its output."""
     try:
         status_placeholder.info(f"Running {script_name}...")
         
@@ -112,10 +120,10 @@ def run_script(script_name: str, status_placeholder) -> None:
             env['HTTPS_PROXY'] = os.environ['HTTPS_PROXY']
         
         process = subprocess.Popen([sys.executable, script_name], 
-                                stdout=subprocess.PIPE, 
-                                stderr=subprocess.PIPE,
-                                text=True,
-                                env=env)  # Add environment variables
+                                   stdout=subprocess.PIPE, 
+                                   stderr=subprocess.PIPE,
+                                   text=True,
+                                   env=env)
         
         while True:
             output = process.stdout.readline()
@@ -126,16 +134,18 @@ def run_script(script_name: str, status_placeholder) -> None:
         
         if process.poll() == 0:
             status_placeholder.success(f"{script_name} completed successfully!")
-            if script_name in ["fetch.py", "fetch_update.py"]:
-                latest_path = save_latest_file_path()
-                if latest_path:
-                    status_placeholder.info(f"Data path updated: {latest_path}")
+            
+            # Automatically update the latest file path in config.json
+            latest_path = save_latest_file_path()
+            if latest_path:
+                status_placeholder.info(f"Updated data path in config.json: {latest_path}")
         else:
             errors = process.stderr.read()
             status_placeholder.error(f"Error in {script_name}: {errors}")
             
     except Exception as e:
         status_placeholder.error(f"Failed to run {script_name}: {str(e)}")
+
 
 def check_data_status():
     """Check the status of data files and current path"""
@@ -174,84 +184,89 @@ def launch_dashboard(script_name: str):
     subprocess.Popen([sys.executable, '-m', 'streamlit', 'run', script_name])
 
 def main():
-    st.set_page_config(page_title="TCP", layout="wide")
-    
-    # Add VPN configuration at the start
-    configure_network()
-    
-    # Simple header
+    # Set Streamlit page configuration
+    st.set_page_config(page_title="Trading Control Panel", layout="wide")
+
+    # Configure the network (e.g., VPN or proxy) at the start
+    network_status = configure_network()
+
+    # Display the main header
     st.title("Trading Control Panel")
-    
-    # Trading Parameters Section (only once!)
+
+    # Sidebar: Trading Parameters Section
     st.sidebar.header("Currency-Interval")
     
-    # Load current parameters (only once!)
+    # Load current trading parameters
     current_params = load_trading_params()
-    
-    # Symbol input (only once!)
+
+    # Sidebar: Symbol Input
     symbol = st.sidebar.text_input(
-        "Trading Pair", 
-        value=st.session_state.trading_params['symbol'],
-        help="Enter trading pair (e.g., PEPEUSDT, ETHUSDT)"
+        "Trading Pair",
+        value=current_params['symbol'],
+        help="Enter the trading pair (e.g., PEPEUSDT, BTCUSDT)"
     )
-    
-    # Interval selection
+
+    # Sidebar: Interval Selection
     intervals = ['1h', '4h', '1d', '7d']
     interval = st.sidebar.selectbox(
         "Timeframe",
         intervals,
-        index=intervals.index(st.session_state.trading_params['interval']),
-        help="Select timeframe for analysis"
+        index=intervals.index(current_params['interval']),
+        help="Select the timeframe for analysis"
     )
-    
-    # Save parameters button
+
+    # Sidebar: Save Parameters Button
     if st.sidebar.button("Save Parameters"):
         save_trading_params(symbol, interval)
-        st.sidebar.success("Parameters saved!")
-    
-    # Data collection section
+        st.sidebar.success("Trading parameters saved successfully!")
+
+    # Main Layout: Two Columns
     col1, col2 = st.columns(2)
-    
+
+    # Column 1: Data Collection Section
     with col1:
         st.markdown("### Data Collection")
-        # Show data status
-        st.code(check_data_status())
         
-        # Data collection buttons
+        # Display current data status
+        st.code(check_data_status())
+
+        # Buttons for Data Fetching and Path Updates
         if st.button("📥 Initial Data Fetch"):
             save_trading_params(symbol, interval)  # Save parameters before fetching
-            status = st.empty()
+            status = st.empty()  # Placeholder for status updates
             run_script("fetch.py", status)
-            
+
         if st.button("🔄 Update Data"):
             save_trading_params(symbol, interval)  # Save parameters before updating
-            status = st.empty()
+            status = st.empty()  # Placeholder for status updates
             run_script("fetch_update.py", status)
-        
-        # Manual path update button
+
         if st.button("🔄 Update Path to Latest"):
             latest_path = save_latest_file_path()
             if latest_path:
-                st.success(f"Path updated to: {latest_path}")
+                st.success(f"Data path updated in config.json: {latest_path}")
             else:
-                st.error("No data files found")
-    
+                st.error("No data files found in the data folder.")
+
+    # Column 2: Analysis Section
     with col2:
         st.markdown("### Analysis")
         st.markdown("Choose an analysis to launch:")
-        
-        # Dashboard navigation buttons
+
+        # Buttons for Navigating to Different Dashboards
         if st.button("Entry Models"):
             st.switch_page("pages/1_entry_models.py")
-        
+
         if st.button("Candle View"):
             st.switch_page("pages/2_cv.py")
-        
+
         if st.button("Feature Analysis"):
             st.switch_page("pages/3_fa.py")
-        
-        if st.button("ML"):
+
+        if st.button("Machine Learning (ML)"):
             st.switch_page("pages/4_ml.py")
 
+
+# Entry Point for the Script
 if __name__ == "__main__":
     main()
