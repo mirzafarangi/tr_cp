@@ -101,9 +101,10 @@ def generate_gpt_analysis(report_text):
         return f"Error generating GPT analysis: {str(e)}"
 
 def main():
-    st.set_page_config(page_title="Machine Learning Trading Insights", layout="wide")
-    st.title("Machine Learning Trading Insights")
-    st.markdown("Analyze your trading data and generate actionable insights using advanced AI models.")
+    st.set_page_config(page_title="LLM Trading Insights", layout="wide")
+    st.title("LLM Trading Insights")
+    st.markdown("Analysis & Interpretation")
+    st.write("Secrets available:", st.secrets)
 
     latest_file = load_latest_file()
     if not latest_file:
@@ -130,6 +131,7 @@ def main():
         return
 
     if st.button("Generate GPT Analysis"):
+
         try:
             report_text = f"""
             This is the last {timeframe} candle data of PEPEUSDT: {json_last_4h}.
