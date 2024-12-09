@@ -235,7 +235,7 @@ def main():
     )
 
     # Sidebar: Interval Selection
-    intervals = ["1h", "4h", "1d", "7d"]
+    intervals = ["15m", "1h", "4h", "8h", "1w", "7d", "1M"]
     interval = st.sidebar.selectbox(
         "Timeframe",
         intervals,

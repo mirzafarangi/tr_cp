@@ -203,8 +203,8 @@ def main():
 
     # Sidebar inputs
     st.sidebar.header("Parameters")
-    symbol = st.sidebar.text_input("Symbol", value="BTCUSDT", help="Enter the trading pair (e.g., BTCUSDT)")
-    interval = st.sidebar.selectbox("Interval", ["4h", "1d", "1h"], index=0)
+    symbol = st.sidebar.text_input("Symbol", value="PEPEUSDT", help="Enter the trading pair (e.g., BTCUSDT)")
+    interval = st.sidebar.selectbox("Interval", ["15m", "1h", "4h", "8h", "1w", "7d", "1M"], index=0)
 
     # Fetch live data
     df = fetch_live_data(symbol, interval)
