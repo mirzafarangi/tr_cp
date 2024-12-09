@@ -158,7 +158,6 @@ def generate_gpt_analysis(report_text):
         return None
 
 
-# Main Function
 def main():
     st.set_page_config(page_title="Machine Learning Trading Insights", layout="wide")
 
@@ -189,26 +188,46 @@ def main():
     st.sidebar.header("Select Analysis Parameters")
     timeframe = st.sidebar.selectbox("Timeframe", ["4h", "1d", "7d", "30d"], index=0)
 
-    # Process and display the last 4H data
-    if df is not None:
+    # Process and display the last k rows
+    try:
         last_4h, json_last_4h = get_last_k_rows_with_json(df, 1)
         st.subheader(f"Last {timeframe.upper()} Data")
-        st.dataframe(last_4h.round(12))
+        st.dataframe(last_4h.round(12))  # Display with better formatting for small numbers
+    except ValueError as e:
+        st.error(f"Data retrieval error: {str(e)}")
+        return
 
-        # Extract specific sections for detailed analysis
+    # Extract specific sections for detailed analysis
+    try:
+        last_4h_index = last_4h[
+            [
+                "MCI", "TMI", "VAMO", "Pivot", "Resistance_1", "Support_1",
+                "Support_4h", "Support_1d", "Support_1w", "MT_SR_Weighted_Level", "PEI", "VWDI"
+            ]
+        ].to_dict(orient="records")[0]
+
+        other_index = last_4h[
+            [
+                "current_signals", "overall_recommendation", "EMA9_scalping", "EMA21_scalping", "RSI7_scalping",
+                "RSI9_scalping", "VWAP_scalping", "Stoch_Fast_K_scalping", "Stoch_Fast_D_scalping", "SMA20_swing",
+                "EMA50_swing", "RSI14_swing", "ADX_swing", "Stoch_Slow_K_14_3_3_swing", "Stoch_Slow_D_14_3_3_swing",
+                "Tenkan-sen_scalping", "Kijun-sen_scalping", "Senkou_Span_A_scalping", "Senkou_Span_B_scalping",
+                "Cloud_Status_scalping", "Tenkan_Kijun_Signal_scalping", "Tenkan-sen_swing", "Kijun-sen_swing",
+                "Senkou_Span_A_swing", "Senkou_Span_B_swing", "Cloud_Status_swing", "Tenkan_Kijun_Signal_swing",
+                "Current_Support", "Current_Resistance", "Major_Resistance", "Weak_Resistance", "Strong_Support",
+                "Major_Support"
+            ]
+        ].to_dict(orient="records")[0]
+    except KeyError as e:
+        st.error(f"KeyError: {str(e)} - Ensure your data contains all necessary columns.")
+        return
+    except IndexError as e:
+        st.error(f"IndexError: {str(e)} - DataFrame might be empty or malformed.")
+        return
+
+    # Generate GPT analysis
+    if st.button("Generate GPT Analysis"):
         try:
-            last_4h_index = last_4h[
-                [
-                    "MCI", "TMI", "VAMO", "Pivot", "Resistance_1", "Support_1",
-                    "Support_4h", "Support_1d", "Support_1w", "MT_SR_Weighted_Level", "PEI", "VWDI"
-                ]
-            ].to_dict(orient="records")[0]
-        except KeyError as e:
-            st.error(f"KeyError: {str(e)} - Ensure your data contains all necessary columns.")
-            return
-
-        # Generate GPT analysis
-        if st.button("Generate GPT Analysis"):
             report_text = f"""
             This is the last {timeframe} candle data of PEPEUSDT: {json_last_4h}.
             Give me a clean, complete, comprehensive analysis and interpretation, and concrete examples for entry, take-profit, stop-loss points, 
@@ -351,9 +370,8 @@ This comprehensive strategy ensures you capitalize on immediate opportunities wh
                 st.markdown(analysis)
             else:
                 st.error("Failed to generate analysis.")
-    else:
-        st.error("Failed to load data.")
-
+        except Exception as e:
+            st.error(f"Error generating GPT analysis: {str(e)}")
 
 if __name__ == "__main__":
     main()
