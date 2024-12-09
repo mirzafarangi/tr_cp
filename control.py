@@ -56,10 +56,31 @@ def save_trading_params(symbol: str, interval: str):
 
 def load_trading_params():
     """Load trading parameters from config file"""
-    if os.path.exists(TRADING_CONFIG):
-        with open(TRADING_CONFIG, 'r') as f:
-            return json.load(f)
-    return {'symbol': 'PEPEUSDT', 'interval': '4h'}  # Default values
+    try:
+        if os.path.exists(TRADING_CONFIG):
+            with open(TRADING_CONFIG, 'r') as f:
+                params = json.load(f)
+                # Validate loaded params
+                if 'symbol' in params and 'interval' in params:
+                    return params
+    except Exception as e:
+        st.sidebar.warning(f"Could not load trading parameters: {str(e)}")
+    
+    # Default values if file doesn't exist or is invalid
+    default_params = {
+        'symbol': 'PEPEUSDT',
+        'interval': '4h'
+    }
+    
+    # Save default params to file
+    try:
+        os.makedirs(os.path.dirname(TRADING_CONFIG), exist_ok=True)
+        with open(TRADING_CONFIG, 'w') as f:
+            json.dump(default_params, f)
+    except Exception as e:
+        st.sidebar.warning(f"Could not save default parameters: {str(e)}")
+    
+    return default_params  # Default values
 
 def save_latest_file_path():
     """Save the path of the most recent CSV file to config"""
@@ -170,15 +191,18 @@ def main():
     # Symbol input
     symbol = st.sidebar.text_input("Trading Pair", 
                                 value=current_params['symbol'],
-                                help="Enter trading pair (e.g., BTCUSDT, ETHUSDT)")
+                                help="Enter trading pair (e.g., PEPEUSDT, ETHUSDT)")
     
     # Interval selection
     intervals = ['1h', '4h', '1d', '7d']
-    interval = st.sidebar.selectbox("Timeframe",
-                                intervals,
-                                index=intervals.index(current_params['interval']),
-                                help="Select timeframe for analysis")
-    
+    interval = st.sidebar.selectbox(
+        "Timeframe",
+        intervals,
+        index=intervals.index(current_params['interval']),  # This should now correctly select '4h'
+        help="Select timeframe for analysis"
+    )
+    current_params = load_trading_params()
+    st.sidebar.write("Debug - Current params:", current_params)  # Add this line temporarily
     # Save parameters button
     if st.sidebar.button("Save Parameters"):
         save_trading_params(symbol, interval)
