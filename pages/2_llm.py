@@ -5,6 +5,9 @@ import json
 from datetime import datetime
 import openai
 
+# Ensure Pandas displays small numbers correctly
+pd.options.display.float_format = '{:.12f}'.format
+
 # Set OpenAI API key
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
@@ -116,28 +119,33 @@ def main():
     if df is not None:
         last_4h, json_last_4h = get_last_k_rows_with_json(df, 1)
         st.subheader(f"Last {timeframe.upper()} Data")
-        st.write(last_4h)
+        # Display the table with better formatting for small numbers
+        st.dataframe(last_4h.style.format("{:.12f}"))
 
         # Extract specific sections for detailed analysis
-        last_4h_index = last_4h[
-            [
-                "MCI", "TMI", "VAMO", "Pivot", "Resistance_1", "Support_1",
-                "Support_4h", "Support_1d", "Support_1w", "MT_SR_Weighted_Level", "PEI", "VWDI"
-            ]
-        ].to_dict(orient="records")[0]
+        try:
+            last_4h_index = last_4h[
+                [
+                    "MCI", "TMI", "VAMO", "Pivot", "Resistance_1", "Support_1",
+                    "Support_4h", "Support_1d", "Support_1w", "MT_SR_Weighted_Level", "PEI", "VWDI"
+                ]
+            ].to_dict(orient="records")[0]
 
-        other_index = last_4h[
-            [
-                "current_signals", "overall_recommendation", "EMA9_scalping", "EMA21_scalping", "RSI7_scalping",
-                "RSI9_scalping", "VWAP_scalping", "Stoch_Fast_K_scalping", "Stoch_Fast_D_scalping", "SMA20_swing",
-                "EMA50_swing", "RSI14_swing", "ADX_swing", "Stoch_Slow_K_14_3_3_swing", "Stoch_Slow_D_14_3_3_swing",
-                "Tenkan-sen_scalping", "Kijun-sen_scalping", "Senkou_Span_A_scalping", "Senkou_Span_B_scalping",
-                "Cloud_Status_scalping", "Tenkan_Kijun_Signal_scalping", "Tenkan-sen_swing", "Kijun-sen_swing",
-                "Senkou_Span_A_swing", "Senkou_Span_B_swing", "Cloud_Status_swing", "Tenkan_Kijun_Signal_swing",
-                "Current_Support", "Current_Resistance", "Major_Resistance", "Weak_Resistance", "Strong_Support",
-                "Major_Support"
-            ]
-        ].to_dict(orient="records")[0]
+            other_index = last_4h[
+                [
+                    "current_signals", "overall_recommendation", "EMA9_scalping", "EMA21_scalping", "RSI7_scalping",
+                    "RSI9_scalping", "VWAP_scalping", "Stoch_Fast_K_scalping", "Stoch_Fast_D_scalping", "SMA20_swing",
+                    "EMA50_swing", "RSI14_swing", "ADX_swing", "Stoch_Slow_K_14_3_3_swing", "Stoch_Slow_D_14_3_3_swing",
+                    "Tenkan-sen_scalping", "Kijun-sen_scalping", "Senkou_Span_A_scalping", "Senkou_Span_B_scalping",
+                    "Cloud_Status_scalping", "Tenkan_Kijun_Signal_scalping", "Tenkan-sen_swing", "Kijun-sen_swing",
+                    "Senkou_Span_A_swing", "Senkou_Span_B_swing", "Cloud_Status_swing", "Tenkan_Kijun_Signal_swing",
+                    "Current_Support", "Current_Resistance", "Major_Resistance", "Weak_Resistance", "Strong_Support",
+                    "Major_Support"
+                ]
+            ].to_dict(orient="records")[0]
+        except KeyError as e:
+            st.error(f"KeyError: {str(e)} - Ensure your data contains all necessary columns.")
+            return
 
         # Generate GPT analysis
         if st.button("Generate GPT Analysis"):
