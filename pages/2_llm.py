@@ -5,7 +5,6 @@ import os
 from openai import OpenAI
 from datetime import datetime
 
-# Configure pandas to display small numbers properly
 pd.set_option('display.float_format', lambda x: '{:.16g}'.format(x))
 pd.set_option('display.max_columns', None)
 pd.set_option('display.width', None)
@@ -273,6 +272,7 @@ def generate_gpt_analysis(data_dict, timeframe, last_4h_index, other_index):
         return f"Error generating analysis: {str(e)}"
 
 def main():
+    # Page configuration
     st.set_page_config(page_title="LLM Trading Insights", layout="wide")
     st.title("LLM Trading Insights")
     
@@ -280,16 +280,16 @@ def main():
     latest_file = load_latest_file()
     if not latest_file:
         return
-        
+    
     df = read_csv_file(latest_file)
     if df is None:
         return
-        
+    
     df = calculate_trading_indexes(df)
     if df is None:
         return
     
-    # Display options
+    # Display options in sidebar
     timeframe = st.sidebar.selectbox(
         "Select Timeframe",
         ["4h", "1d", "7d", "30d"],
@@ -300,12 +300,24 @@ def main():
     latest_data = df.tail(1).to_dict('records')[0]
     last_4h_index, other_index = extract_trading_indexes(latest_data)
     
-    # Display latest data
+    # Display latest data with proper formatting
     st.subheader(f"Latest {timeframe.upper()} Data")
-    formatted_df = df.tail(1).apply(pd.to_numeric, errors='ignore')
-    st.dataframe(formatted_df, use_container_width=True)
     
-    # Generate analysis
+    # Create formatted DataFrame for display
+    formatted_df = df.tail(1).copy()
+    
+    # Format all float columns to preserve small numbers
+    for col in formatted_df.select_dtypes(include=['float64']).columns:
+        formatted_df[col] = formatted_df[col].apply(lambda x: '{:.16g}'.format(x))
+    
+    # Display the formatted DataFrame
+    st.dataframe(
+        formatted_df,
+        use_container_width=True,
+        hide_index=True
+    )
+    
+    # Generate analysis button and display
     if st.button("Analysis Last Candle"):
         with st.spinner("generating report..."):
             analysis = generate_gpt_analysis(latest_data, timeframe, last_4h_index, other_index)
