@@ -4,3 +4,4 @@ pandas
 numpy
 ta
 openai>=1.0.0
+python-dotenv
