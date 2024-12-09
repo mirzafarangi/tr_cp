@@ -15,6 +15,30 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 DATA_FOLDER = "data"
 CONFIG_FILE = "config.json"
 
+def get_last_k_rows_with_json(df, k):
+    """
+    Returns the last k rows of a DataFrame as both a clean table and a JSON object.
+
+    Parameters:
+        df (pd.DataFrame): The DataFrame containing coin data.
+        k (int): The number of last rows to retrieve.
+
+    Returns:
+        tuple: A tuple containing:
+            - pd.DataFrame: The last k rows in table format.
+            - str: The JSON representation of the last k rows.
+    """
+    if k <= 0:
+        raise ValueError("k must be greater than 0")
+
+    if df is None or df.empty:
+        raise ValueError("The input DataFrame is empty or None.")
+
+    last_k_rows = df.tail(k)
+    clean_table = last_k_rows.reset_index(drop=True)
+    json_output = clean_table.to_json(orient="records", date_format="iso")
+    return clean_table, json_output
+
 # Required Columns for Calculations
 required_columns = [
     'rsi_14', 'histogram', 'ADX_swing', 'Stoch_Slow_K_14_3_3_swing',
