@@ -60,15 +60,17 @@ class IchimokuAnalyzer:
         # Calculate Chikou Span
         df['chikou_span'] = df['close'].shift(-settings.kijun_period)
         
-        # Calculate cloud thickness
-        df['cloud_thickness'] = abs(df['senkou_span_a'] - df['senkou_span_b'])
-        
-        # Calculate distance from cloud
-        df['price_cloud_distance'] = df['close'] - df[['senkou_span_a', 'senkou_span_b']].mean(axis=1)
+        # Calculate cloud metrics
+        df['cloud_thickness'] = abs(df['senkou_span_a'] - df['senkou_span_b']).fillna(0)
+        df['price_cloud_distance'] = (df['close'] - ((df['senkou_span_a'] + df['senkou_span_b']) / 2)).fillna(0)
         
         # Identify flat Kumo areas (Span B)
         span_b_std = df['senkou_span_b'].rolling(window=5).std()
-        df['flat_kumo'] = span_b_std < span_b_std.quantile(0.2)
+        df['flat_kumo'] = (span_b_std < span_b_std.quantile(0.2)).fillna(False)
+        
+        # Forward fill NaN values in Ichimoku components
+        ichimoku_columns = ['tenkan_sen', 'kijun_sen', 'senkou_span_a', 'senkou_span_b', 'chikou_span']
+        df[ichimoku_columns] = df[ichimoku_columns].fillna(method='ffill')
         
         return df
     
