@@ -2,10 +2,12 @@ import streamlit as st
 import pandas as pd
 import os
 import openai
-
+from datetime import datetime
 
 # Ensure Pandas displays small numbers correctly
-pd.options.display.float_format = '{:.12f}'.format
+pd.set_option('display.float_format', lambda x: '{:.12g}'.format(x))
+pd.set_option('display.max_columns', None)
+pd.set_option('display.width', None)
 
 # Load OpenAI API Key
 try:
@@ -22,108 +24,122 @@ REQUIRED_COLUMNS = [
     'VWAP_scalping', 'EMA21_scalping', 'tenkan_sen', 'kijun_sen'
 ]
 
-# Utility Functions
 def load_latest_file():
     """Load the latest CSV file based on the last modified time."""
     if not os.path.exists(DATA_FOLDER):
-        st.error("Data folder not found.")
+        st.error(f"Data folder '{DATA_FOLDER}' not found.")
         return None
+    
     files = [f for f in os.listdir(DATA_FOLDER) if f.endswith(".csv")]
     if not files:
         st.error("No CSV files found in the data folder.")
         return None
+    
     latest_file = max(files, key=lambda x: os.path.getmtime(os.path.join(DATA_FOLDER, x)))
     return os.path.join(DATA_FOLDER, latest_file)
 
 def read_csv_file(file_path):
     """Read a CSV file into a DataFrame."""
     try:
-        return pd.read_csv(file_path)
+        df = pd.read_csv(file_path)
+        # Validate required columns
+        missing_cols = [col for col in REQUIRED_COLUMNS if col not in df.columns]
+        if missing_cols:
+            st.error(f"Missing required columns: {', '.join(missing_cols)}")
+            return None
+        return df
     except Exception as e:
         st.error(f"Error reading file {file_path}: {str(e)}")
         return None
 
-def ensure_columns_and_calculate_indexes(df):
-    """Ensure necessary columns are present and calculate new indexes."""
-    for col in REQUIRED_COLUMNS:
-        if col not in df.columns:
-            raise ValueError(f"Missing required column: {col}")
-
-    # Calculate custom trading indexes
-    df['MCI'] = ((df['rsi_14'] - 50) / 50 + (df['Stoch_Slow_K_14_3_3_swing'] - 50) / 50 + df['histogram']) * df['ADX_swing']
-    df['TMI'] = (df['rsi_14'] / 100) * df['ADX_swing'] * ((df['current_price'] - df['EMA50_swing']) / df['EMA50_swing'])
-    df['VAMO'] = (df['rsi_14'] - 50) * (df['current_price'] / df['atr'])
-    df['Pivot'] = (df['high'] + df['low'] + df['close']) / 3
-    df['Resistance_1'] = 2 * df['Pivot'] - df['low']
-    df['Support_1'] = 2 * df['Pivot'] - df['high']
-    df['Support_4h'] = df['low'] * 0.95
-    df['Support_1d'] = df['low'] * 0.92
-    df['Support_1w'] = df['low'] * 0.90
-    df['MT_SR_Weighted_Level'] = (df['Support_4h'] + 2 * df['Support_1d'] + 3 * df['Support_1w']) / 6
-    df['PEI'] = (df['Stoch_Slow_K_14_3_3_swing'] + df['rsi_14'] + (df['tenkan_sen'] - df['kijun_sen'])) / 3
-    df['VWDI'] = df['VWAP_scalping'] - df['EMA21_scalping']
-    df.fillna(0, inplace=True)
-    return df
-
-def save_updated_csv(df, file_name):
-    """Save the updated DataFrame with new indexes."""
-    output_file = os.path.join(DATA_FOLDER, file_name)
-    df.to_csv(output_file, index=False)
-    return output_file
-
-def generate_gpt_analysis(report_text):
-    """Generate an analysis using OpenAI's GPT model."""
-    base_prompt = """
-    You are a professional trading assistant skilled in swing and scalping trading and analyzing technical analysis reports for cryptocurrencies.
-    Analyze the provided data, and give actionable insights, including entry, stop-loss, and take-profit recommendations.
-    """
+def calculate_trading_indexes(df):
+    """Calculate all trading indexes from input data."""
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": base_prompt},
-                {"role": "user", "content": report_text}
-            ],
-            temperature=0.7,
-        )
-        return response['choices'][0]['message']['content'].strip()
-    except openai.error.OpenAIError as e:
-        return f"Error generating GPT analysis: {str(e)}"
+        # 1. Momentum Composite Index (MCI)
+        df['MCI'] = ((df['rsi_14'] - 50) / 50 + 
+                     (df['Stoch_Slow_K_14_3_3_swing'] - 50) / 50 + 
+                     df['histogram']) * df['ADX_swing']
+        
+        # 2. Trend-Momentum Index (TMI)
+        df['TMI'] = (df['rsi_14'] / 100) * df['ADX_swing'] * \
+                    ((df['current_price'] - df['EMA50_swing']) / df['EMA50_swing'])
+        
+        # 3. Volatility-Adjusted Momentum Oscillator (VAMO)
+        df['VAMO'] = (df['rsi_14'] - 50) * (df['current_price'] / df['atr'])
+        
+        # 4. Dynamic Pivot Bands
+        df['Pivot'] = (df['high'] + df['low'] + df['close']) / 3
+        df['Resistance_1'] = 2 * df['Pivot'] - df['low']
+        df['Support_1'] = 2 * df['Pivot'] - df['high']
+        
+        # 5. Multi-Timeframe Support and Resistance (MT-SR)
+        df['Support_4h'] = df['low'] * 0.95
+        df['Support_1d'] = df['low'] * 0.92
+        df['Support_1w'] = df['low'] * 0.90
+        df['MT_SR_Weighted_Level'] = (df['Support_4h'] + 2 * df['Support_1d'] + 
+                                     3 * df['Support_1w']) / 6
+        
+        # 6. Probabilistic Entry Indicator (PEI)
+        df['PEI'] = (df['Stoch_Slow_K_14_3_3_swing'] + df['rsi_14'] + 
+                     (df['tenkan_sen'] - df['kijun_sen'])) / 3
+        
+        # 7. Volume-Wave Divergence Index (VWDI)
+        df['VWDI'] = df['VWAP_scalping'] - df['EMA21_scalping']
+        
+        # Clean any NaN values
+        df.fillna(0, inplace=True)
+        
+        return df
+    except Exception as e:
+        st.error(f"Error calculating indexes: {str(e)}")
+        return None
 
-# Main Streamlit App
-def main():
-    st.set_page_config(page_title="LLM Trading Insights", layout="wide")
-    st.title("LLM Trading Insights")
-    st.markdown("Analyze trading data and generate actionable insights using GPT-powered AI.")
-
-    # Load and preprocess data
-    latest_file = load_latest_file()
-    if not latest_file:
-        return
-    df = read_csv_file(latest_file)
-    if df is None:
-        return
-
+def save_processed_data(df):
+    """Save the processed DataFrame to a CSV file."""
     try:
-        df = ensure_columns_and_calculate_indexes(df)
-        updated_file = save_updated_csv(df, "PEPEUSDT_data_with_new_indexes.csv")
-        st.sidebar.success(f"Updated data saved to: {os.path.basename(updated_file)}")
-    except ValueError as e:
-        st.error(f"Data processing error: {str(e)}")
-        return
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        output_file = os.path.join(DATA_FOLDER, f"processed_data_{timestamp}.csv")
+        df.to_csv(output_file, index=False)
+        return output_file
+    except Exception as e:
+        st.error(f"Error saving processed data: {str(e)}")
+        return None
 
-    # Select timeframe for analysis
-    timeframe = st.sidebar.selectbox("Timeframe", ["4h", "1d", "7d", "30d"], index=0)
-    last_4h, json_last_4h = df.tail(1), df.tail(1).to_json(orient="records")
-    st.subheader(f"Last {timeframe.upper()} Data")
-    st.dataframe(last_4h)
+def generate_gpt_analysis(data_dict, timeframe):
+    """Generate analysis using OpenAI's GPT model with your specific prompt format."""
+    report_text = f"""
+    This is the last {timeframe} candle data of PEPEUSDT: {data_dict}
+    Give me a clean, complete, comprehensive analysis and interpretation, and concrete examples for entry, take-profit, stop-loss points, 
+    specially regarding these sections of my data:
+    
+    1. Momentum and Trend Indicators:
+    - MCI: {data_dict.get('MCI')}
+    - TMI: {data_dict.get('TMI')}
+    - VAMO: {data_dict.get('VAMO')}
+    
+    2. Support and Resistance Levels:
+    - Current Price: {data_dict.get('current_price')}
+    - Pivot: {data_dict.get('Pivot')}
+    - Support_1: {data_dict.get('Support_1')}
+    - Resistance_1: {data_dict.get('Resistance_1')}
+    - MT_SR_Weighted_Level: {data_dict.get('MT_SR_Weighted_Level')}
+    
+    The report should look like this example:
+    
+    Comprehensive Analysis and Strategy
+    Let's break down and interpret the new indexes and their values with a focus on actionable strategies for:
+    - Short-term (4h trading)
+    - Mid-term (1-7 days)
+    - Long-term (7-30 days)
+    
+    Please provide:
+    1. Detailed interpretation of each indicator
+    2. Multiple timeframe analysis
+    3. Specific entry, stop-loss, and take-profit levels
+    4. Risk management recommendations
+    5. Key levels to monitor
 
-    # Generate GPT Analysis
-    if st.button("Generate GPT Analysis"):
-        report_text = f"""
-            This is the last {timeframe} candle data of PEPEUSDT: {json_last_4h}.
-            Give me a clean, complete, comprehensive analysis and interpretation, and concrete examples for entry, take-profit, stop-loss points, 
-            specially regarding these sections of my data: {last_4h_index}, {other_index}. The report should looks like this example ---Comprehensive Analysis and Strategy
+    Example of a your generated report should be like ------Comprehensive Analysis and Strategy
 Let’s break down and interpret the new indexes and their values with a focus on actionable strategies for short-term (4h trading), mid-term (1-7 days), and long-term (7-30 days) horizons. The interpretation includes identifying entry, take-profit, and stop-loss levels, along with momentum and trend signals.
 
 1. Interpreting the New Indexes
@@ -255,10 +271,105 @@ Accumulate if price retraces to Major Support (0.00002034).
 Stop Loss: 0.00002000.
 Targets: 0.00003169 and 0.000035.
 This comprehensive strategy ensures you capitalize on immediate opportunities while aligning with broader market trends.---
-            """
-        analysis = generate_gpt_analysis(report_text)
-        st.subheader("GPT Analysis Report")
-        st.markdown(analysis)
+    """
+    
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": """
+    You are a professional trading assistant skilled in swing and scalping trading and analyzing technical analysis reports for cryptocurrencies.
+    The user will provide data from their trading tools for specific coins and timeframes. Your role is to analyze this
+    data, provide actionable insights, analyse price action and make recommendations on entry, stop-loss, and take-profit points.
+    """},
+                {"role": "user", "content": report_text}
+            ],
+            temperature=0.7
+        )
+        return response['choices'][0]['message']['content']
+    except Exception as e:
+        return f"Error generating analysis: {str(e)}"
+
+def main():
+    st.set_page_config(page_title="LLM Trading Insights", layout="wide")
+    st.title("LLM Trading Insights")
+    st.markdown("LLM Trading Insights")
+    
+    # Load and process data
+    latest_file = load_latest_file()
+    if not latest_file:
+        return
+        
+    df = read_csv_file(latest_file)
+    if df is None:
+        return
+        
+    # Calculate trading indexes
+    df = calculate_trading_indexes(df)
+    if df is None:
+        return
+    
+    # Save processed data
+    output_file = save_processed_data(df)
+    if output_file:
+        st.sidebar.success(f"Processed data saved to: {os.path.basename(output_file)}")
+    
+    # Display options
+    timeframe = st.sidebar.selectbox(
+        "Select Timeframe",
+        ["4h", "1d", "7d", "30d"],
+        index=0
+    )
+    
+    # Get and display latest data
+    latest_data = df.tail(1).to_dict('records')[0]
+    
+    # Display data in organized sections
+    st.subheader(f"Latest {timeframe.upper()} Data")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("### Price Levels")
+        st.dataframe(pd.DataFrame({
+            'Metric': ['Current Price', 'Pivot', 'Support_1', 'Resistance_1'],
+            'Value': [
+                latest_data['current_price'],
+                latest_data['Pivot'],
+                latest_data['Support_1'],
+                latest_data['Resistance_1']
+            ]
+        }).set_index('Metric'))
+    
+    with col2:
+        st.markdown("### Momentum Indicators")
+        st.dataframe(pd.DataFrame({
+            'Metric': ['MCI', 'TMI', 'VAMO', 'PEI'],
+            'Value': [
+                latest_data['MCI'],
+                latest_data['TMI'],
+                latest_data['VAMO'],
+                latest_data['PEI']
+            ]
+        }).set_index('Metric'))
+    
+    with col3:
+        st.markdown("### Technical Indicators")
+        st.dataframe(pd.DataFrame({
+            'Metric': ['RSI', 'ADX', 'VWDI'],
+            'Value': [
+                latest_data['rsi_14'],
+                latest_data['ADX_swing'],
+                latest_data['VWDI']
+            ]
+        }).set_index('Metric'))
+    
+    # Generate analysis
+    if st.button("Generate Trading Analysis"):
+        with st.spinner("Generating comprehensive analysis..."):
+            analysis = generate_gpt_analysis(latest_data, timeframe)
+            st.subheader("Trading Analysis Report")
+            st.markdown(analysis)
 
 if __name__ == "__main__":
     main()
