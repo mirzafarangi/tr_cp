@@ -2,10 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import openai
-from dotenv import load_dotenv
 
-# Load environment variables if running locally
-load_dotenv()
 
 # Ensure Pandas displays small numbers correctly
 pd.options.display.float_format = '{:.12f}'.format
