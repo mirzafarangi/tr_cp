@@ -2,3 +2,4 @@ streamlit
 requests>=2.26.0
 pandas
 numpy
+ta
