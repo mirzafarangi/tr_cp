@@ -290,11 +290,14 @@ def main():
         if st.button("Candle View"):
             st.switch_page("pages/3_cv.py")
 
+        if st.button("Ichimoko Status"):
+            st.switch_page("pages/4_ichimoko.py")
+        
         if st.button("Feature Analysis"):
-            st.switch_page("pages/4_fa.py")
+            st.switch_page("pages/5_fa.py")
 
         if st.button("Machine Learning (ML)"):
-            st.switch_page("pages/5_ml.py")
+            st.switch_page("pages/6_ml.py")
 
 
 if __name__ == "__main__":
