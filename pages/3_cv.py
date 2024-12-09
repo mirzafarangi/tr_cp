@@ -1,360 +1,247 @@
 import streamlit as st
 import pandas as pd
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import numpy as np
-from dataclasses import dataclass
-from typing import List, Dict, Tuple
-import json
 import ta
+import plotly.graph_objects as go
+import json
+import requests
 
-@dataclass
-class PricePattern:
-    name: str
-    start_idx: int
-    end_idx: int
-    pattern_type: str  # 'bullish' or 'bearish'
-    confidence: float
-    description: str
 
-@dataclass
-class LiquidityZone:
-    price_level: float
-    zone_type: str  # 'sweep' or 'block'
-    strength: float
-    description: str
-
-class CandlestickAnalyzer:
-    def __init__(self, df: pd.DataFrame):
-        self.df = df.copy()
-        self.patterns = []
-        self.liquidity_zones = []
+# --- Helper Functions ---
+def fetch_live_data(symbol: str, interval: str, limit: int = 30) -> pd.DataFrame:
+    """
+    Fetch live candlestick data from Binance API for the given symbol and interval.
+    
+    Parameters:
+    - symbol: Trading pair (e.g., 'BTCUSDT').
+    - interval: Timeframe (e.g., '4h').
+    - limit: Number of candles to fetch.
+    
+    Returns:
+    - A DataFrame containing OHLCV data.
+    """
+    url = "https://api.binance.com/api/v3/klines"
+    params = {
+        "symbol": symbol,
+        "interval": interval,
+        "limit": limit
+    }
+    try:
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
         
-    def _create_engulfing_pattern(self, idx: int, window: pd.DataFrame) -> PricePattern:
-        """Create engulfing pattern object"""
-        current = window.iloc[-1]
-        pattern_type = 'bullish' if current['close'] > current['open'] else 'bearish'
+        # Process data into a DataFrame
+        df = pd.DataFrame(data, columns=[
+            "timestamp", "open", "high", "low", "close", "volume",
+            "close_time", "quote_volume", "trades", "taker_buy_base",
+            "taker_buy_quote", "ignored"
+        ])
         
-        return PricePattern(
-            name="Engulfing",
-            start_idx=idx-1,
-            end_idx=idx,
-            pattern_type=pattern_type,
-            confidence=0.85,
-            description=f"{pattern_type.capitalize()} engulfing pattern detected"
+        # Convert data types
+        df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+        numeric_cols = ["open", "high", "low", "close", "volume", "quote_volume"]
+        for col in numeric_cols:
+            df[col] = pd.to_numeric(df[col])
+        
+        return df
+    
+    except requests.exceptions.RequestException as e:
+        st.error(f"Error fetching data: {str(e)}")
+        return pd.DataFrame()  # Return empty DataFrame on error
+
+
+def add_indicators(df):
+    """Add necessary technical indicators."""
+    if df.empty:
+        return df
+
+    # Add RSI
+    df['rsi_7'] = ta.momentum.RSIIndicator(df['close'], window=7).rsi()
+    df['rsi_14'] = ta.momentum.RSIIndicator(df['close'], window=14).rsi()
+    
+    # Add Moving Averages
+    df['ema_9'] = ta.trend.EMAIndicator(df['close'], window=9).ema_indicator()
+    df['ema_21'] = ta.trend.EMAIndicator(df['close'], window=21).ema_indicator()
+    
+    # Add Ichimoku
+    ichimoku = calculate_ichimoku(df, 9, 26, 52)
+    df['tenkan_sen'] = ichimoku['tenkan_sen']
+    df['kijun_sen'] = ichimoku['kijun_sen']
+    df['senkou_span_a'] = ichimoku['senkou_span_a']
+    df['senkou_span_b'] = ichimoku['senkou_span_b']
+    
+    # Add Stochastic Oscillator
+    stoch = ta.momentum.StochasticOscillator(
+        df['high'], df['low'], df['close'], window=14, smooth_window=3
+    )
+    df['stoch_k'] = stoch.stoch()
+    df['stoch_d'] = stoch.stoch_signal()
+    
+    return df
+
+
+def calculate_ichimoku(df, tenkan_period, kijun_period, span_b_period):
+    """Calculate Ichimoku components."""
+    def period_avg(high, low, period):
+        return (high.rolling(window=period).max() + low.rolling(window=period).min()) / 2
+    
+    tenkan_sen = period_avg(df['high'], df['low'], tenkan_period)
+    kijun_sen = period_avg(df['high'], df['low'], kijun_period)
+    senkou_span_a = (tenkan_sen + kijun_sen) / 2
+    senkou_span_b = period_avg(df['high'], df['low'], span_b_period)
+    
+    return {
+        'tenkan_sen': tenkan_sen,
+        'kijun_sen': kijun_sen,
+        'senkou_span_a': senkou_span_a,
+        'senkou_span_b': senkou_span_b
+    }
+
+
+def identify_patterns(df):
+    """Identify common candlestick patterns."""
+    patterns = []
+    for i in range(1, len(df)):
+        # Bullish Engulfing
+        if (
+            df['close'].iloc[i] > df['open'].iloc[i]
+            and df['close'].iloc[i - 1] < df['open'].iloc[i - 1]
+            and df['close'].iloc[i] > df['open'].iloc[i - 1]
+            and df['open'].iloc[i] < df['close'].iloc[i - 1]
+        ):
+            patterns.append(('Bullish Engulfing', df['timestamp'].iloc[i]))
+        
+        # Add more patterns here as needed
+        
+    return patterns
+
+
+def plot_candles_with_indicators(df):
+    """Plot candlestick chart with indicators."""
+    fig = go.Figure()
+
+    # Add candlestick chart
+    fig.add_trace(
+        go.Candlestick(
+            x=df['timestamp'],
+            open=df['open'],
+            high=df['high'],
+            low=df['low'],
+            close=df['close'],
+            name='Candles'
+        )
+    )
+
+    # Add Moving Averages
+    fig.add_trace(
+        go.Scatter(
+            x=df['timestamp'], y=df['ema_9'],
+            mode='lines', name='EMA 9',
+            line=dict(color='blue', width=1)
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=df['timestamp'], y=df['ema_21'],
+            mode='lines', name='EMA 21',
+            line=dict(color='orange', width=1)
+        )
+    )
+
+    # Add Ichimoku components
+    fig.add_trace(
+        go.Scatter(
+            x=df['timestamp'], y=df['senkou_span_a'],
+            mode='lines', name='Senkou Span A',
+            line=dict(color='green', width=1)
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=df['timestamp'], y=df['senkou_span_b'],
+            mode='lines', name='Senkou Span B',
+            line=dict(color='red', width=1)
+        )
+    )
+
+    fig.update_layout(
+        title='4H Candlestick Chart with Indicators',
+        xaxis_title='Time',
+        yaxis_title='Price',
+        template='plotly_dark',
+        xaxis_rangeslider_visible=False
+    )
+    return fig
+
+
+def plot_advanced_patterns(df, patterns):
+    """Plot advanced patterns on the candlestick chart."""
+    fig = plot_candles_with_indicators(df)
+    
+    for pattern, timestamp in patterns:
+        fig.add_annotation(
+            x=timestamp,
+            y=df[df['timestamp'] == timestamp]['high'].values[0],
+            text=pattern,
+            showarrow=True,
+            arrowhead=2,
+            ax=20,
+            ay=-30
         )
     
-    def _create_pin_pattern(self, idx: int, candle: pd.Series) -> PricePattern:
-        """Create pin bar pattern object"""
-        body = abs(candle['close'] - candle['open'])
-        upper_wick = candle['high'] - max(candle['open'], candle['close'])
-        lower_wick = min(candle['open'], candle['close']) - candle['low']
-        
-        pattern_type = 'bullish' if lower_wick > upper_wick else 'bearish'
-        
-        return PricePattern(
-            name="Pin Bar",
-            start_idx=idx,
-            end_idx=idx,
-            pattern_type=pattern_type,
-            confidence=0.75,
-            description=f"{pattern_type.capitalize()} pin bar detected"
-        )
-    
-    def _create_liquidity_sweep(self, idx: int, window: pd.DataFrame) -> LiquidityZone:
-        """Create liquidity sweep zone object"""
-        current = window.iloc[-1]
-        
-        return LiquidityZone(
-            price_level=current['high'] if current['close'] > current['open'] else current['low'],
-            zone_type='sweep',
-            strength=0.8,
-            description="Potential liquidity sweep zone"
-        )
-    
-    def _create_institutional_block(self, idx: int, window: pd.DataFrame) -> LiquidityZone:
-        """Create institutional block zone object"""
-        current = window.iloc[-1]
-        
-        return LiquidityZone(
-            price_level=current['close'],
-            zone_type='block',
-            strength=0.9,
-            description="Potential institutional order block"
-        )
-    
-    def _is_inside_bar(self, window: pd.DataFrame) -> bool:
-        current = window.iloc[-1]
-        previous = window.iloc[-2]
-        
-        return (current['high'] < previous['high'] and 
-                current['low'] > previous['low'])
+    fig.update_layout(
+        title='Candlestick Chart with Patterns',
+    )
+    return fig
 
-    def identify_patterns(self) -> List[PricePattern]:
-        """Identify candlestick patterns in the data"""
-        patterns = []
-        
-        for i in range(3, len(self.df)):
-            window = self.df.iloc[i-3:i+1]
-            
-            # Engulfing Pattern
-            if self._is_engulfing_pattern(window):
-                pattern = self._create_engulfing_pattern(i, window)
-                patterns.append(pattern)
-            
-            # Pin Bar Pattern
-            if self._is_pin_bar(window.iloc[-1]):
-                pattern = self._create_pin_pattern(i, window.iloc[-1])
-                patterns.append(pattern)
-                
-            # Inside Bar Pattern
-            if self._is_inside_bar(window.iloc[-2:]):
-                pattern = PricePattern(
-                    name="Inside Bar",
-                    start_idx=i-1,
-                    end_idx=i,
-                    pattern_type="neutral",
-                    confidence=0.8,
-                    description="Inside bar formation - potential breakout setup"
-                )
-                patterns.append(pattern)
-        
-        return patterns
-    
-    def _add_patterns_to_chart(self, fig: go.Figure):
-        """Add pattern annotations to chart"""
-        for pattern in self.patterns:
-            pattern_color = 'green' if pattern.pattern_type == 'bullish' else 'red'
-            
-            fig.add_shape(
-                type="rect",
-                x0=self.df['timestamp'].iloc[pattern.start_idx],
-                x1=self.df['timestamp'].iloc[pattern.end_idx],
-                y0=self.df['low'].iloc[pattern.start_idx:pattern.end_idx+1].min(),
-                y1=self.df['high'].iloc[pattern.start_idx:pattern.end_idx+1].max(),
-                line=dict(color=pattern_color, width=1),
-                fillcolor=pattern_color,
-                opacity=0.2,
-                row=1, col=1
-            )
-    
-    def _add_liquidity_zones_to_chart(self, fig: go.Figure):
-        """Add liquidity zone annotations to chart"""
-        for zone in self.liquidity_zones:
-            zone_color = 'blue' if zone.zone_type == 'sweep' else 'purple'
-            
-            fig.add_hline(
-                y=zone.price_level,
-                line_dash="dash",
-                line_color=zone_color,
-                opacity=0.5,
-                row=1, col=1
-            )
-    
-    def create_candlestick_chart(self) -> go.Figure:
-        """Create main candlestick chart with patterns and zones"""
-        # Create figure with secondary y-axis
-        fig = make_subplots(rows=2, cols=1, 
-                           shared_xaxes=True,
-                           vertical_spacing=0.03,
-                           row_heights=[0.7, 0.3])
-        
-        # Add candlestick
-        fig.add_trace(go.Candlestick(
-            x=self.df['timestamp'],
-            open=self.df['open'],
-            high=self.df['high'],
-            low=self.df['low'],
-            close=self.df['close'],
-            name="OHLC"
-        ), row=1, col=1)
-        
-        # Add volume bars
-        colors = ['red' if close < open else 'green' 
-                 for close, open in zip(self.df['close'], self.df['open'])]
-        
-        fig.add_trace(go.Bar(
-            x=self.df['timestamp'],
-            y=self.df['volume'],
-            name="Volume",
-            marker_color=colors
-        ), row=2, col=1)
-        
-        # Add patterns
-        self.patterns = self.identify_patterns()
-        self._add_patterns_to_chart(fig)
-        
-        # Add liquidity zones
-        self.liquidity_zones = self.identify_liquidity_zones()
-        self._add_liquidity_zones_to_chart(fig)
-        
-        # Update layout
-        fig.update_layout(
-            title="Advanced Price Action Analysis",
-            yaxis_title="Price",
-            yaxis2_title="Volume",
-            xaxis_rangeslider_visible=False,
-            height=800
-        )
-        
-        return fig
-    
-    def create_technical_indicators_chart(self) -> go.Figure:
-        """Create chart with technical indicators"""
-        fig = make_subplots(rows=4, cols=1, 
-                           shared_xaxes=True,
-                           vertical_spacing=0.05,
-                           row_heights=[0.4, 0.2, 0.2, 0.2])
-        
-        # Add RSIs
-        fig.add_trace(go.Scatter(
-            x=self.df['timestamp'],
-            y=self.df['rsi_7'],
-            name="RSI(7)"
-        ), row=2, col=1)
-        
-        fig.add_trace(go.Scatter(
-            x=self.df['timestamp'],
-            y=self.df['rsi_14'],
-            name="RSI(14)"
-        ), row=2, col=1)
-        
-        # Add MACD
-        fig.add_trace(go.Scatter(
-            x=self.df['timestamp'],
-            y=self.df['macd'],
-            name="MACD"
-        ), row=3, col=1)
-        
-        fig.add_trace(go.Scatter(
-            x=self.df['timestamp'],
-            y=self.df['signal'],
-            name="Signal"
-        ), row=3, col=1)
-        
-        # Add Stochastic
-        fig.add_trace(go.Scatter(
-            x=self.df['timestamp'],
-            y=self.df['Stoch_Fast_K_scalping'],
-            name="Stoch Fast K"
-        ), row=4, col=1)
-        
-        fig.add_trace(go.Scatter(
-            x=self.df['timestamp'],
-            y=self.df['Stoch_Fast_D_scalping'],
-            name="Stoch Fast D"
-        ), row=4, col=1)
-        
-        # Add horizontal lines for RSI and Stochastic
-        fig.add_hline(y=70, line_dash="dash", line_color="red", row=2, col=1)
-        fig.add_hline(y=30, line_dash="dash", line_color="green", row=2, col=1)
-        fig.add_hline(y=80, line_dash="dash", line_color="red", row=4, col=1)
-        fig.add_hline(y=20, line_dash="dash", line_color="green", row=4, col=1)
-        
-        # Update layout
-        fig.update_layout(
-            title="Technical Indicators",
-            height=800,
-            showlegend=True,
-            yaxis2_title="RSI",
-            yaxis3_title="MACD",
-            yaxis4_title="Stochastic"
-        )
-        
-        return fig
 
-class TradingDashboard:
-    def __init__(self):
-        self.data_path = self._get_data_path()
-        
-    def _get_data_path(self) -> str:
-        """Get data path from config file"""
-        with open('config.json', 'r') as f:
-            config = json.load(f)
-            return config['data_path']
-    
-    def load_data(self) -> pd.DataFrame:
-        """Load and prepare last 30 candles of data"""
-        df = pd.read_csv(self.data_path, parse_dates=['timestamp'])
-        return df.tail(30).copy()
-    
-    def run_dashboard(self):
-        """Run the main dashboard"""
-        st.title("Advanced Candlestick Analysis")
-        
-        try:
-            # Load data
-            df = self.load_data()
-            
-            # Initialize analyzer
-            analyzer = CandlestickAnalyzer(df)
-            
-            # Create main candlestick chart
-            st.subheader("Price Action Analysis")
-            candlestick_fig = analyzer.create_candlestick_chart()
-            st.plotly_chart(candlestick_fig, use_container_width=True)
-            
-            # Create technical indicators chart
-            st.subheader("Technical Analysis")
-            indicators_fig = analyzer.create_technical_indicators_chart()
-            st.plotly_chart(indicators_fig, use_container_width=True)
-            
-            # Pattern Analysis Section
-            st.subheader("Detected Patterns")
-            patterns = analyzer.identify_patterns()
-            
-            if patterns:
-                for pattern in patterns:
-                    with st.expander(f"{pattern.name} Pattern"):
-                        st.write(f"Type: {pattern.pattern_type}")
-                        st.write(f"Confidence: {pattern.confidence:.2f}")
-                        st.write(f"Description: {pattern.description}")
-            else:
-                st.write("No significant patterns detected in current timeframe")
-            
-            # Liquidity Analysis Section
-            st.subheader("Liquidity Analysis")
-            zones = analyzer.identify_liquidity_zones()
-            
-            if zones:
-                for zone in zones:
-                    with st.expander(f"Liquidity Zone at {zone.price_level:.8f}"):
-                        st.write(f"Type: {zone.zone_type}")
-                        st.write(f"Strength: {zone.strength:.2f}")
-                        st.write(f"Description: {zone.description}")
-            else:
-                st.write("No significant liquidity zones detected")
-            
-            # Trading Recommendations
-            st.subheader("Trading Analysis")
-            self._display_trading_analysis(df)
-            
-        except Exception as e:
-            st.error(f"Error in dashboard: {str(e)}")
-            st.error(f"Error details: {type(e).__name__}")
-            import traceback
-            st.error(traceback.format_exc())
-    
-    def _display_trading_analysis(self, df: pd.DataFrame):
-        """Display trading analysis and recommendations"""
-        current_data = df.iloc[-1]
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("### Key Levels")
-            st.write(f"Current Price: {current_data['close']:.8f}")
-            st.write(f"Key Support: {current_data['strong_support']:.8f}")
-            st.write(f"Key Resistance: {current_data['major_resistance']:.8f}")
-        
-        with col2:
-            st.markdown("### Technical Status")
-            st.write(f"Trend Status: {current_data['current_signals']}")
-            st.write(f"Overall Recommendation: {current_data['overall_recommendation']}")
-
+# --- Main Streamlit App ---
 def main():
-    dashboard = TradingDashboard()
-    dashboard.run_dashboard()
+    st.set_page_config(page_title="Live 4H Candle Analysis", layout="wide")
+    st.title("Live 4H Candle Analysis Dashboard")
+
+    # Sidebar inputs
+    st.sidebar.header("Parameters")
+    symbol = st.sidebar.text_input("Symbol", value="BTCUSDT", help="Enter the trading pair (e.g., BTCUSDT)")
+    interval = st.sidebar.selectbox("Interval", ["4h", "1d", "1h"], index=0)
+
+    # Fetch live data
+    df = fetch_live_data(symbol, interval)
+
+    # Add indicators
+    if not df.empty:
+        df = add_indicators(df)
+
+        # 1. Candle Visualization
+        st.header("Candlestick Chart with Indicators")
+        fig_candles = plot_candles_with_indicators(df)
+        st.plotly_chart(fig_candles, use_container_width=True)
+
+        # 2. Pattern Recognition
+        st.header("Pattern Recognition")
+        patterns = identify_patterns(df)
+        if patterns:
+            st.write("Identified Patterns:")
+            for pattern, timestamp in patterns:
+                st.write(f"- {pattern} at {timestamp}")
+        else:
+            st.write("No significant patterns identified.")
+
+        fig_patterns = plot_advanced_patterns(df, patterns)
+        st.plotly_chart(fig_patterns, use_container_width=True)
+
+        # 3. Analysis and Recommendations
+        st.header("Analysis and Recommendations")
+        st.subheader("Traditional Technical Analysis")
+        st.write(f"RSI (14): {df['rsi_14'].iloc[-1]:.2f}")
+        st.write(f"Ichimoku Status: {'Bullish' if df['close'].iloc[-1] > df['senkou_span_a'].iloc[-1] else 'Bearish'}")
+
+        st.subheader("Advanced Price Action")
+        st.write("Monitor for patterns like bullish engulfing near key support zones.")
+    
+    else:
+        st.error("No data available. Check your symbol or interval.")
 
 if __name__ == "__main__":
     main()
