@@ -130,7 +130,7 @@ def save_updated_csv(df, file_name):
 
 def generate_gpt_analysis(report_text):
     """
-    Generate an analysis using OpenAI's GPT model.
+    Generate an analysis using OpenAI's GPT model with updated API.
 
     Parameters:
         report_text (str): The prompt or data to send to GPT.
@@ -138,10 +138,17 @@ def generate_gpt_analysis(report_text):
     Returns:
         str: The generated GPT response.
     """
+    import openai
+
+    # API key from environment
+    openai.api_key = os.getenv("OPENAI_API_KEY")
+    if not openai.api_key:
+        raise ValueError("OpenAI API key not found in environment variables.")
+
     base_prompt = """
     You are a professional trading assistant skilled in swing and scalping trading and analyzing technical analysis reports for cryptocurrencies.
     The user will provide data from their trading tools for specific coins and timeframes. Your role is to analyze this
-    data, provide actionable insights, analyse price action and make recommendations on entry, stop-loss, and take-profit points.
+    data, provide actionable insights, analyze price action, and make recommendations on entry, stop-loss, and take-profit points.
     """
 
     try:
@@ -150,12 +157,15 @@ def generate_gpt_analysis(report_text):
             messages=[
                 {"role": "system", "content": base_prompt},
                 {"role": "user", "content": report_text}
-            ]
+            ],
+            temperature=0.7,
         )
-        return response['choices'][0]['message']['content']
-    except Exception as e:
-        st.error(f"Error generating GPT analysis: {str(e)}")
-        return None
+
+        # Extract the response content
+        return response['choices'][0]['message']['content'].strip()
+    except openai.error.OpenAIError as e:
+        return f"Error generating GPT analysis: {str(e)}"
+
 
 
 def main():
