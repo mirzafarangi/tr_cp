@@ -296,6 +296,119 @@ class PatternAnalyzer:
                 ))
                 
         return patterns
+    def find_order_blocks(self) -> List[Pattern]:
+        """Detect institutional order blocks and breaker blocks"""
+        patterns = []
+        window = 10
+        
+        for i in range(window, len(self.df)-2):
+            current = self.df.iloc[i]
+            next_candle = self.df.iloc[i+1]
+            window_data = self.df.iloc[i-window:i]
+            
+            # Bullish Order Block
+            if (current['close'] < current['open'] and           # Strong bearish candle
+                next_candle['close'] > next_candle['open'] and  # Followed by bullish candle
+                current['volume'] > window_data['volume'].mean() * 1.5 and
+                current['body_size'] > current['atr']):
+                
+                patterns.append(Pattern(
+                    type=PatternType.ORDER_BLOCK,
+                    start_idx=i,
+                    end_idx=i+1,
+                    confidence=0.85,
+                    description="Bullish Order Block - Institutional buying zone",
+                    timeframe=self.timeframe,
+                    risk_reward=3.0,
+                    volume_confirmation=True,
+                    multi_timeframe_confluence=False
+                ))
+            
+            # Bearish Order Block
+            elif (current['close'] > current['open'] and         # Strong bullish candle
+                  next_candle['close'] < next_candle['open'] and  # Followed by bearish candle
+                  current['volume'] > window_data['volume'].mean() * 1.5 and
+                  current['body_size'] > current['atr']):
+                
+                patterns.append(Pattern(
+                    type=PatternType.ORDER_BLOCK,
+                    start_idx=i,
+                    end_idx=i+1,
+                    confidence=0.85,
+                    description="Bearish Order Block - Institutional selling zone",
+                    timeframe=self.timeframe,
+                    risk_reward=3.0,
+                    volume_confirmation=True,
+                    multi_timeframe_confluence=False
+                ))
+            
+            # Breaker Block
+            if i > window + 5:
+                previous_high = window_data['high'].max()
+                previous_low = window_data['low'].min()
+                
+                if (current['close'] > previous_high and
+                    next_candle['low'] < current['low'] and
+                    current['volume'] > window_data['volume'].mean() * 2):
+                    
+                    patterns.append(Pattern(
+                        type=PatternType.BREAKER_BLOCK,
+                        start_idx=i,
+                        end_idx=i+1,
+                        confidence=0.9,
+                        description="Breaker Block - Strong reversal zone",
+                        timeframe=self.timeframe,
+                        risk_reward=2.5,
+                        volume_confirmation=True,
+                        multi_timeframe_confluence=False
+                    ))
+                
+        return patterns
+
+    def find_fair_value_gaps(self) -> List[Pattern]:
+        """Detect fair value gaps in price action"""
+        patterns = []
+        
+        for i in range(2, len(self.df)-1):
+            current = self.df.iloc[i]
+            previous = self.df.iloc[i-1]
+            two_back = self.df.iloc[i-2]
+            
+            # Bullish FVG
+            if (two_back['low'] > current['high'] and  # Gap up
+                previous['body_size'] > previous['atr'] * 0.5 and
+                current['volume'] > current['volume_sma']):
+                
+                patterns.append(Pattern(
+                    type=PatternType.FAIR_VALUE_GAP,
+                    start_idx=i-2,
+                    end_idx=i,
+                    confidence=0.8,
+                    description="Bullish Fair Value Gap - Potential support",
+                    timeframe=self.timeframe,
+                    risk_reward=2.0,
+                    volume_confirmation=True,
+                    multi_timeframe_confluence=False
+                ))
+            
+            # Bearish FVG
+            elif (two_back['high'] < current['low'] and  # Gap down
+                  previous['body_size'] > previous['atr'] * 0.5 and
+                  current['volume'] > current['volume_sma']):
+                
+                patterns.append(Pattern(
+                    type=PatternType.FAIR_VALUE_GAP,
+                    start_idx=i-2,
+                    end_idx=i,
+                    confidence=0.8,
+                    description="Bearish Fair Value Gap - Potential resistance",
+                    timeframe=self.timeframe,
+                    risk_reward=2.0,
+                    volume_confirmation=True,
+                    multi_timeframe_confluence=False
+                ))
+                
+        return patterns
     
     def create_pattern_visualization(self, patterns: List[Pattern]) -> go.Figure:
         """Create visualization with pattern annotations"""
