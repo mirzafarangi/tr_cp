@@ -461,6 +461,243 @@ class PatternAnalyzer:
                 ))
                 
         return patterns
+    def find_volume_divergence(self) -> List[Pattern]:
+        """Detect volume-price divergence patterns"""
+        patterns = []
+        window = 10  # Analysis window
+        
+        for i in range(window, len(self.df)-1):
+            current = self.df.iloc[i]
+            window_data = self.df.iloc[i-window:i+1]
+            
+            # Calculate trends
+            price_high_trend = window_data['high'].diff().mean()
+            price_low_trend = window_data['low'].diff().mean()
+            volume_trend = window_data['volume'].diff().mean()
+            
+            # Bullish Divergence
+            # Price making lower lows but volume decreasing (accumulation)
+            if (price_low_trend < 0 and  # Price trending down
+                volume_trend < 0 and     # Volume trending down
+                current['close'] > current['open'] and  # Current candle bullish
+                current['volume'] > current['volume_sma']):  # Volume confirmation
+                
+                patterns.append(Pattern(
+                    type=PatternType.VOLUME_PRICE_DIVERGENCE,
+                    start_idx=i-window,
+                    end_idx=i,
+                    confidence=0.8,
+                    description="Bullish Volume Divergence - Declining volume in downtrend",
+                    timeframe=self.timeframe,
+                    risk_reward=2.0,
+                    volume_confirmation=True,
+                    multi_timeframe_confluence=False
+                ))
+            
+            # Bearish Divergence
+            # Price making higher highs but volume decreasing (distribution)
+            elif (price_high_trend > 0 and  # Price trending up
+                  volume_trend < 0 and      # Volume trending down
+                  current['close'] < current['open'] and  # Current candle bearish
+                  current['volume'] > current['volume_sma']):  # Volume confirmation
+                
+                patterns.append(Pattern(
+                    type=PatternType.VOLUME_PRICE_DIVERGENCE,
+                    start_idx=i-window,
+                    end_idx=i,
+                    confidence=0.8,
+                    description="Bearish Volume Divergence - Declining volume in uptrend",
+                    timeframe=self.timeframe,
+                    risk_reward=2.0,
+                    volume_confirmation=True,
+                    multi_timeframe_confluence=False
+                ))
+            
+            # Additional check for climax volume
+            if (current['volume'] > window_data['volume'].max() * 1.5 and
+                abs(current['close'] - current['open']) > current['atr']):
+                
+                divergence_type = ("Bullish" if current['close'] > current['open'] 
+                                 else "Bearish")
+                
+                patterns.append(Pattern(
+                    type=PatternType.VOLUME_PRICE_DIVERGENCE,
+                    start_idx=i-1,
+                    end_idx=i,
+                    confidence=0.9,
+                    description=f"{divergence_type} Climax Volume - Potential reversal",
+                    timeframe=self.timeframe,
+                    risk_reward=2.5,
+                    volume_confirmation=True,
+                    multi_timeframe_confluence=False
+                ))
+                
+        return patterns
+    
+    def find_market_structure_breaks(self) -> List[Pattern]:
+        """Detect breaks in market structure and character changes"""
+        patterns = []
+        window = 20  # Analysis window
+        
+        for i in range(window, len(self.df)-1):
+            current = self.df.iloc[i]
+            window_data = self.df.iloc[i-window:i]
+            
+            # Calculate swing points
+            swing_highs = []
+            swing_lows = []
+            
+            for j in range(2, len(window_data)-2):
+                if (window_data.iloc[j]['high'] > window_data.iloc[j-1]['high'] and 
+                    window_data.iloc[j]['high'] > window_data.iloc[j-2]['high'] and
+                    window_data.iloc[j]['high'] > window_data.iloc[j+1]['high'] and
+                    window_data.iloc[j]['high'] > window_data.iloc[j+2]['high']):
+                    swing_highs.append(window_data.iloc[j]['high'])
+                
+                if (window_data.iloc[j]['low'] < window_data.iloc[j-1]['low'] and 
+                    window_data.iloc[j]['low'] < window_data.iloc[j-2]['low'] and
+                    window_data.iloc[j]['low'] < window_data.iloc[j+1]['low'] and
+                    window_data.iloc[j]['low'] < window_data.iloc[j+2]['low']):
+                    swing_lows.append(window_data.iloc[j]['low'])
+            
+            if len(swing_highs) >= 2 and len(swing_lows) >= 2:
+                # Bullish Structure Break
+                if (current['high'] > max(swing_highs[-2:]) and
+                    current['volume'] > current['volume_sma'] * 1.5):
+                    
+                    patterns.append(Pattern(
+                        type=PatternType.MARKET_STRUCTURE_BREAK,
+                        start_idx=i-3,
+                        end_idx=i,
+                        confidence=0.85,
+                        description="Bullish Market Structure Break - Higher High confirmed",
+                        timeframe=self.timeframe,
+                        risk_reward=2.5,
+                        volume_confirmation=True,
+                        multi_timeframe_confluence=False
+                    ))
+                
+                # Bearish Structure Break
+                elif (current['low'] < min(swing_lows[-2:]) and
+                      current['volume'] > current['volume_sma'] * 1.5):
+                    
+                    patterns.append(Pattern(
+                        type=PatternType.MARKET_STRUCTURE_BREAK,
+                        start_idx=i-3,
+                        end_idx=i,
+                        confidence=0.85,
+                        description="Bearish Market Structure Break - Lower Low confirmed",
+                        timeframe=self.timeframe,
+                        risk_reward=2.5,
+                        volume_confirmation=True,
+                        multi_timeframe_confluence=False
+                    ))
+            
+            # Change of Character (CHoCH)
+            if len(swing_highs) >= 3 and len(swing_lows) >= 3:
+                trend_change = False
+                
+                # Bullish Change
+                if (swing_lows[-1] > swing_lows[-2] and
+                    swing_highs[-1] > swing_highs[-2] and
+                    current['close'] > current['open']):
+                    trend_change = True
+                    desc = "Bullish Change of Character"
+                
+                # Bearish Change
+                elif (swing_highs[-1] < swing_highs[-2] and
+                      swing_lows[-1] < swing_lows[-2] and
+                      current['close'] < current['open']):
+                    trend_change = True
+                    desc = "Bearish Change of Character"
+                
+                if trend_change:
+                    patterns.append(Pattern(
+                        type=PatternType.CHANGE_OF_CHARACTER,
+                        start_idx=i-5,
+                        end_idx=i,
+                        confidence=0.9,
+                        description=desc,
+                        timeframe=self.timeframe,
+                        risk_reward=3.0,
+                        volume_confirmation=True,
+                        multi_timeframe_confluence=False
+                    ))
+        
+        return patterns
+    
+    def find_volatility_patterns(self) -> List[Pattern]:
+        """Detect volatility-based patterns including contractions and expansions"""
+        patterns = []
+        window = 20  # Analysis window
+        
+        for i in range(window, len(self.df)-1):
+            current = self.df.iloc[i]
+            window_data = self.df.iloc[i-window:i]
+            
+            # Calculate volatility metrics
+            atr_series = window_data['atr']
+            current_atr = current['atr']
+            avg_atr = atr_series.mean()
+            atr_std = atr_series.std()
+            
+            # Volatility Contraction (VCP)
+            if (current_atr < avg_atr - (atr_std * 1.5) and  # Significant contraction
+                current['body_size'] < current['atr'] * 0.5 and  # Small bodies
+                window_data['body_size'].mean() < window_data['atr'].mean() * 0.7):  # Sustained contraction
+                
+                patterns.append(Pattern(
+                    type=PatternType.VOLATILITY_CONTRACTION,
+                    start_idx=i-5,
+                    end_idx=i,
+                    confidence=0.8,
+                    description="Volatility Contraction Pattern - Potential breakout setup",
+                    timeframe=self.timeframe,
+                    risk_reward=3.0,
+                    volume_confirmation=current['volume'] < current['volume_sma'],
+                    multi_timeframe_confluence=False
+                ))
+            
+            # Volatility Expansion
+            elif (current_atr > avg_atr + (atr_std * 2) and  # Significant expansion
+                  current['volume'] > current['volume_sma'] * 1.5):  # Volume confirmation
+                
+                patterns.append(Pattern(
+                    type=PatternType.VOLATILITY_EXPANSION,
+                    start_idx=i-1,
+                    end_idx=i,
+                    confidence=0.85,
+                    description="Volatility Expansion - Strong directional move",
+                    timeframe=self.timeframe,
+                    risk_reward=2.0,
+                    volume_confirmation=True,
+                    multi_timeframe_confluence=False
+                ))
+            
+            # Range Breakout
+            if i > 5:  # Need some prior data for range
+                recent_data = self.df.iloc[i-5:i]
+                price_range = recent_data['high'].max() - recent_data['low'].min()
+                range_avg = price_range / 5
+                
+                if (abs(current['close'] - current['open']) > range_avg * 2 and  # Strong breakout
+                    current['volume'] > current['volume_sma'] * 1.3):  # Volume confirmation
+                    
+                    breakout_type = "Bullish" if current['close'] > current['open'] else "Bearish"
+                    
+                    patterns.append(Pattern(
+                        type=PatternType.RANGE_BREAKOUT,
+                        start_idx=i-5,
+                        end_idx=i,
+                        confidence=0.85,
+                        description=f"{breakout_type} Range Breakout - Strong momentum move",
+                        timeframe=self.timeframe,
+                        risk_reward=2.5,
+                        volume_confirmation=True,
+                        multi_timeframe_confluence=False
+                    ))
+        
+        return patterns
     
     def create_pattern_visualization(self, patterns: List[Pattern]) -> go.Figure:
         """Create visualization with pattern annotations"""
