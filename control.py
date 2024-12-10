@@ -67,24 +67,26 @@ def load_initial_data():
             st.session_state.trading_params = {"symbol": "PEPEUSDT", "interval": "4h"}
 
 
-
-# Replace the current load_trading_params function with:
-  # Cache for 1 hour
 def load_trading_params():
-    """Load trading parameters from config file"""
+    """Load trading parameters from config file into session state."""
     try:
         if os.path.exists(TRADING_CONFIG):
             with open(TRADING_CONFIG, 'r') as f:
                 params = json.load(f)
                 if 'symbol' in params and 'interval' in params:
+                    # Update session state
+                    st.session_state.trading_params = params
                     return params
-        return {"symbol": "PEPEUSDT", "interval": "4h"}
+        # Default fallback
+        st.session_state.trading_params = {"symbol": "PEPEUSDT", "interval": "4h"}
+        return st.session_state.trading_params
     except Exception as e:
         st.sidebar.warning(f"Could not load trading parameters: {str(e)}")
-        return {"symbol": "PEPEUSDT", "interval": "4h"}
+        st.session_state.trading_params = {"symbol": "PEPEUSDT", "interval": "4h"}
+        return st.session_state.trading_params
 
-# Add this new function for loading data:
-  # Cache for 5 minutes
+
+
 def load_latest_data() -> pd.DataFrame:
     """Load and cache the latest data"""
     try:
@@ -191,7 +193,7 @@ def run_script(script_name: str, status_placeholder) -> None:
 
   # Cache for 5 minutes
 def check_data_status():
-    """Check the status of data files and current path"""
+    """Check the status of data files and current path."""
     if not os.path.exists(DATA_FOLDER):
         return "No data folder found"
     
@@ -202,21 +204,19 @@ def check_data_status():
     latest_file = max(files, key=lambda x: os.path.getmtime(os.path.join(DATA_FOLDER, x)))
     mod_time = datetime.fromtimestamp(os.path.getmtime(os.path.join(DATA_FOLDER, latest_file)))
     
-    # Get current path from config
-    current_path = "Not set"
-    if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, 'r') as f:
-            config = json.load(f)
-            current_path = config.get('data_path', "Not set")
+    # Get current path from session state
+    current_path = st.session_state.config.get('data_path', "Not set")
     
-    # Get trading parameters
-    trading_params = load_trading_params()
-    
+    # Get trading parameters from session state
+    trading_params = st.session_state.trading_params
+
+    # Build the status string
     return (f"Trading Pair: {trading_params['symbol']}\n"
             f"Timeframe: {trading_params['interval']}\n"
             f"Latest data: {latest_file}\n"
             f"Last updated: {mod_time.strftime('%Y-%m-%d %H:%M:%S')}\n"
             f"Current path: {current_path}")
+
 
 def launch_dashboard(script_name: str):
     """Launch a Streamlit dashboard in a new process"""
