@@ -118,42 +118,60 @@ class PatternAnalyzer:
         logger.info("Starting pattern detection...")
         
         try:
+            # Create index mapping
+            old_df = self.df.copy()
+            self.df = self.analysis_df.copy()
+            self.preprocess_data()
+            
+            # Map indices
+            index_map = {i: idx for i, idx in enumerate(self.df.index)}
+            
             # Basic patterns
-            logger.info("Finding basic patterns...")
-            patterns.extend(self.find_engulfing_patterns())
-            patterns.extend(self.find_pinbar_patterns())
-            patterns.extend(self.find_inside_outside_bars())
+            basic_patterns = []
+            basic_patterns.extend(self.find_engulfing_patterns())
+            basic_patterns.extend(self.find_pinbar_patterns())
+            basic_patterns.extend(self.find_inside_outside_bars())
+            patterns.extend(basic_patterns)
             
             # Advanced patterns
-            logger.info("Finding advanced patterns...")
-            patterns.extend(self.find_liquidity_sweeps())
-            patterns.extend(self.find_order_blocks())
-            patterns.extend(self.find_fair_value_gaps())
+            advanced_patterns = []
+            advanced_patterns.extend(self.find_liquidity_sweeps())
+            advanced_patterns.extend(self.find_order_blocks())
+            advanced_patterns.extend(self.find_fair_value_gaps())
+            patterns.extend(advanced_patterns)
             
             # Volume patterns
-            logger.info("Finding volume patterns...")
-            patterns.extend(self.find_institutional_accumulation())
-            patterns.extend(self.find_volume_divergence())
+            volume_patterns = []
+            volume_patterns.extend(self.find_institutional_accumulation())
+            volume_patterns.extend(self.find_volume_divergence())
+            patterns.extend(volume_patterns)
             
-            # Market structure patterns
-            logger.info("Finding market structure patterns...")
-            patterns.extend(self.find_market_structure_breaks())
+            # Structure patterns
+            structure_patterns = []
+            structure_patterns.extend(self.find_market_structure_breaks())
+            structure_patterns.extend(self.find_volatility_patterns())
+            patterns.extend(structure_patterns)
             
-            # Volatility patterns
-            logger.info("Finding volatility patterns...")
-            patterns.extend(self.find_volatility_patterns())
+            # Map indices back
+            for pattern in patterns:
+                pattern.start_idx = index_map[pattern.start_idx]
+                pattern.end_idx = index_map[pattern.end_idx]
             
-            # Sort patterns by end index
-            self.patterns = sorted(patterns, key=lambda x: x.end_idx)
-            logger.info(f"Found total of {len(patterns)} patterns")
-        
+            # Sort patterns
+            patterns = sorted(patterns, key=lambda x: x.end_idx)
+            
+            # Restore original state
+            self.df = old_df
+            self.preprocess_data()
+            
+            return patterns
+            
         except Exception as e:
             logger.error(f"Error in pattern detection: {str(e)}")
+            self.df = old_df  # Ensure we restore the original state even on error
+            self.preprocess_data()
             raise
-        
-        return self.patterns
 
-    
     def find_engulfing_patterns(self) -> List[Pattern]:
         """Detect engulfing patterns with volume confirmation"""
         patterns = []
@@ -201,8 +219,6 @@ class PatternAnalyzer:
                 ))
         
         return patterns
-
-    
     def find_pinbar_patterns(self) -> List[Pattern]:
         """Detect pin bars with emphasis on wick ratios"""
         patterns = []
@@ -748,8 +764,8 @@ class PatternAnalyzer:
         
         return patterns
     
-    def create_pattern_visualization(self, patterns: List[Pattern]) -> go.Figure:
-        """Create visualization with pattern annotations."""
+    def create_pattern_visualization(self, patterns: List[Pattern], selected_patterns: List[PatternType]) -> go.Figure:
+        """Create visualization with pattern annotations based on user selection."""
         display_df = self.analysis_df.copy()
         global_to_local_index = {idx: i for i, idx in enumerate(display_df.index)}
 
@@ -772,7 +788,7 @@ class PatternAnalyzer:
 
         # Add volume bars
         colors = ['red' if close < open else 'green'
-                for close, open in zip(display_df['close'], display_df['open'])]
+                  for close, open in zip(display_df['close'], display_df['open'])]
         fig.add_trace(go.Bar(
             x=display_df['timestamp'],
             y=display_df['volume'],
@@ -780,8 +796,11 @@ class PatternAnalyzer:
             marker_color=colors
         ), row=2, col=1)
 
-        # Add pattern annotations and shapes
+        # Filter and add selected patterns
         for pattern in patterns:
+            if pattern.type not in selected_patterns:
+                continue  # Skip patterns not selected
+
             logger.info(f"Pattern indices: start_idx={pattern.start_idx}, end_idx={pattern.end_idx}")
             
             if pattern.start_idx not in global_to_local_index or pattern.end_idx not in global_to_local_index:
@@ -825,7 +844,6 @@ class PatternAnalyzer:
 
         return fig
 
-
 class PatternDashboard:
     def __init__(self, config_path='config.json'):
         self.config_path = config_path
@@ -844,8 +862,8 @@ class PatternDashboard:
             return pd.DataFrame()
         return pd.read_csv(self.data_path, parse_dates=['timestamp'])
     
-    def run_dashboard(self):  # Changed method name from render to run_dashboard
-        """Run the pattern analysis dashboard"""
+    def run_dashboard(self):
+        """Run the pattern analysis dashboard with multi-select."""
         try:
             # Load data
             with st.spinner('Loading data...'):
@@ -869,31 +887,78 @@ class PatternDashboard:
                     value=30
                 )
 
+            # Multi-select for patterns
+            all_patterns = [p.value for p in PatternType]
+            selected_pattern_values = st.multiselect(
+                "Select Patterns to Display",
+                options=all_patterns,
+                default=all_patterns  # Preselect all patterns by default
+            )
+
+            # Convert selected pattern names back to PatternType
+            selected_patterns = [
+                PatternType(pattern) for pattern in selected_pattern_values
+            ]
+
             # Pattern Analysis
             if st.button("Run Analysis"):
                 with st.spinner('Analyzing patterns...'):
                     analyzer = PatternAnalyzer(df, timeframe, lookback)
                     patterns = analyzer.find_all_patterns()
-                    
+
                     # Visualization
-                    fig = analyzer.create_pattern_visualization(patterns)
+                    fig = analyzer.create_pattern_visualization(patterns, selected_patterns)
                     st.plotly_chart(fig, use_container_width=True)
-                    
-                    # Pattern Details
+
+                    # Display Pattern Details
                     if patterns:
                         st.subheader("Detected Patterns")
-                        for pattern in patterns:
-                            with st.expander(f"{pattern.type.value}"):
-                                st.write(f"Confidence: {pattern.confidence:.2f}")
-                                st.write(f"Risk/Reward: {pattern.risk_reward:.2f}")
-                                st.write(f"Description: {pattern.description}")
+                        # Filter patterns by selection
+                        filtered_patterns = [
+                            pattern for pattern in patterns if pattern.type in selected_patterns
+                        ]
+                        # Sort patterns by timestamp (most recent first)
+                        sorted_patterns = sorted(
+                            filtered_patterns,
+                            key=lambda p: df['timestamp'].iloc[p.end_idx],
+                            reverse=True
+                        )
+
+                        # Group patterns by date
+                        current_date = None
+                        for pattern in sorted_patterns:
+                            pattern_time = df['timestamp'].iloc[pattern.end_idx]
+                            pattern_date = pattern_time.date()
+
+                            # Add date header if it's a new date
+                            if pattern_date != current_date:
+                                st.markdown(f"### {pattern_date}")
+                                current_date = pattern_date
+
+                            # Display pattern details
+                            with st.expander(
+                                f"{pattern.type.value} - {pattern_time.strftime('%H:%M:%S')}"
+                            ):
+                                st.write(f"**Time:** {pattern_time}")
+                                st.write(f"**Confidence:** {pattern.confidence:.2%}")
+                                st.write(f"**Risk/Reward:** {pattern.risk_reward:.2f}")
+                                st.write(f"**Description:** {pattern.description}")
+
+                                # Add price information with full precision
+                                price_info = df.iloc[pattern.end_idx]
+                                st.write("**Price Info:**")
+                                st.write(f"- Open: {price_info['open']:.8f}")
+                                st.write(f"- High: {price_info['high']:.8f}")
+                                st.write(f"- Low: {price_info['low']:.8f}")
+                                st.write(f"- Close: {price_info['close']:.8f}")
+
 
         except Exception as e:
             st.error(f"Analysis error: {str(e)}")
 
 def main():
     dashboard = PatternDashboard()
-    dashboard.run_dashboard()  # Now this matches the method name
+    dashboard.run_dashboard()
 
 if __name__ == "__main__":
     main()
