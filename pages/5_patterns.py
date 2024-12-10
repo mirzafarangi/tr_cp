@@ -61,10 +61,17 @@ class PatternAnalyzer:
         
     def preprocess_data(self):
         """Calculate necessary indicators and metrics"""
+        # Calculate ATR without TA-Lib
+        def calculate_atr(high, low, close, period=14):
+            tr = pd.DataFrame()
+            tr['h-l'] = high - low
+            tr['h-pc'] = abs(high - close.shift())
+            tr['l-pc'] = abs(low - close.shift())
+            tr['tr'] = tr[['h-l', 'h-pc', 'l-pc']].max(axis=1)
+            return tr['tr'].rolling(period).mean()
+
         # Volatility metrics
-        self.df['atr'] = ta.volatility.average_true_range(
-            self.df['high'], self.df['low'], self.df['close']
-        )
+        self.df['atr'] = calculate_atr(self.df['high'], self.df['low'], self.df['close'])
         self.df['volume_sma'] = self.df['volume'].rolling(window=20).mean()
         
         # Price action metrics
@@ -79,6 +86,9 @@ class PatternAnalyzer:
             -self.df['volume']
         )
         self.df['cvd'] = self.df['volume_delta'].cumsum()
+
+        # Fill NaN values
+        self.df = self.df.fillna(method='ffill').fillna(0)
         
     def find_all_patterns(self) -> List[Pattern]:
         """Detect all pattern types"""
