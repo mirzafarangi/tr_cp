@@ -261,9 +261,13 @@ def main():
     # Sidebar: Save Parameters Button
     if st.sidebar.button("Save Parameters"):
         save_trading_params(symbol, interval)
-        st.experimental_rerun()  # Ensure immediate rerun
+        # Trigger rerun using a session state variable
+        st.session_state['trigger_rerun'] = not st.session_state.get('trigger_rerun', False)
 
-
+    # Check if rerun is needed
+    if st.session_state.get('trigger_rerun', False):
+        st.session_state['trigger_rerun'] = False  # Reset to avoid infinite reruns
+        st.experimental_rerun()  # If not available, remove this line
 
     # Main Layout: Two Columns
     col1, col2 = st.columns(2)
@@ -295,13 +299,6 @@ def main():
                 st.rerun()
             else:
                 st.error("No data files found in the data folder.")
-
-
-
-    # Handle rerun if needed
-    if st.session_state.needs_rerun:
-        st.session_state.needs_rerun = False
-        st.rerun()
 
 if __name__ == "__main__":
     main()
