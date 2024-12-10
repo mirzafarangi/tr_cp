@@ -1,7 +1,4 @@
 import streamlit as st
-# Set page config must be the first Streamlit command
-st.set_page_config(page_title="[Page Title]", layout="wide")
-import pandas as pd
 import subprocess
 import os
 import sys
@@ -67,56 +64,42 @@ def load_initial_data():
             st.session_state.trading_params = {"symbol": "PEPEUSDT", "interval": "4h"}
 
 
+
 def load_trading_params():
-    """Load trading parameters from config file into session state."""
+    """Load trading parameters from config file"""
+    # Initialize session state if not exists
+    if 'trading_params' not in st.session_state:
+        st.session_state.trading_params = {
+            'symbol': 'PEPEUSDT',
+            'interval': '4h'
+        }
+    
     try:
         if os.path.exists(TRADING_CONFIG):
             with open(TRADING_CONFIG, 'r') as f:
                 params = json.load(f)
                 if 'symbol' in params and 'interval' in params:
-                    # Update session state
                     st.session_state.trading_params = params
                     return params
-        # Default fallback
-        st.session_state.trading_params = {"symbol": "PEPEUSDT", "interval": "4h"}
-        return st.session_state.trading_params
     except Exception as e:
         st.sidebar.warning(f"Could not load trading parameters: {str(e)}")
-        st.session_state.trading_params = {"symbol": "PEPEUSDT", "interval": "4h"}
-        return st.session_state.trading_params
-
-
-
-def load_latest_data() -> pd.DataFrame:
-    """Load and cache the latest data"""
-    try:
-        config_path = ""
-        if os.path.exists(CONFIG_FILE):
-            with open(CONFIG_FILE, 'r') as f:
-                config = json.load(f)
-                config_path = config.get('data_path', "")
-        
-        if config_path and os.path.exists(config_path):
-            return pd.read_csv(config_path, parse_dates=['timestamp'])
-        else:
-            st.error("No valid data path found")
-            return pd.DataFrame()
-    except Exception as e:
-        st.error(f"Error loading data: {str(e)}")
-        return pd.DataFrame()
+    
+    return st.session_state.trading_params
 
 def save_trading_params(symbol: str, interval: str):
-    """Save trading parameters in session state and file."""
-    params = {'symbol': symbol.upper(), 'interval': interval}
-    st.session_state.trading_params = params
+    """Save trading parameters in session state."""
+    st.session_state.trading_params = {
+        'symbol': symbol.upper(),
+        'interval': interval
+    }
 
+    # Optional: Write to file for debugging or local runs
     try:
         with open(TRADING_CONFIG, "w") as f:
-            json.dump(params, f, indent=4)
+            json.dump(st.session_state.trading_params, f, indent=4)
         st.sidebar.success("Trading parameters saved successfully!")
     except Exception as e:
         st.sidebar.error(f"Failed to save trading parameters: {str(e)}")
-
 
 
 
@@ -137,6 +120,7 @@ def save_latest_file_path():
     # Update session state
     st.session_state.config["data_path"] = latest_path
 
+    # Optional: Write to file for debugging or local runs
     try:
         with open(CONFIG_FILE, "w") as f:
             json.dump(st.session_state.config, f, indent=4)
@@ -145,7 +129,6 @@ def save_latest_file_path():
     except Exception as e:
         st.error(f"Failed to update config.json: {str(e)}")
         return None
-
 
 
 
@@ -189,9 +172,8 @@ def run_script(script_name: str, status_placeholder) -> None:
         status_placeholder.error(f"Failed to run {script_name}: {str(e)}")
 
 
-
 def check_data_status():
-    """Check the status of data files and current path."""
+    """Check the status of data files and current path"""
     if not os.path.exists(DATA_FOLDER):
         return "No data folder found"
     
@@ -202,19 +184,21 @@ def check_data_status():
     latest_file = max(files, key=lambda x: os.path.getmtime(os.path.join(DATA_FOLDER, x)))
     mod_time = datetime.fromtimestamp(os.path.getmtime(os.path.join(DATA_FOLDER, latest_file)))
     
-    # Get current path from session state
-    current_path = st.session_state.config.get('data_path', "Not set")
+    # Get current path from config
+    current_path = "Not set"
+    if os.path.exists(CONFIG_FILE):
+        with open(CONFIG_FILE, 'r') as f:
+            config = json.load(f)
+            current_path = config.get('data_path', "Not set")
     
-    # Get trading parameters from session state
-    trading_params = st.session_state.trading_params
-
-    # Build the status string
+    # Get trading parameters
+    trading_params = load_trading_params()
+    
     return (f"Trading Pair: {trading_params['symbol']}\n"
             f"Timeframe: {trading_params['interval']}\n"
             f"Latest data: {latest_file}\n"
             f"Last updated: {mod_time.strftime('%Y-%m-%d %H:%M:%S')}\n"
             f"Current path: {current_path}")
-
 
 def launch_dashboard(script_name: str):
     """Launch a Streamlit dashboard in a new process"""
@@ -225,12 +209,14 @@ def launch_dashboard(script_name: str):
     subprocess.Popen([sys.executable, '-m', 'streamlit', 'run', script_name])
 
 def main():
-    # Initialize session state for reloads
-    if 'needs_rerun' not in st.session_state:
-        st.session_state.needs_rerun = False
+    # Set Streamlit page configuration
+    st.set_page_config(page_title="Trading Control Panel", layout="wide")
 
     # Load initial configuration data
     load_initial_data()
+
+    # Configure the network (e.g., VPN or proxy) at the start
+    configure_network()
 
     # Display the main header
     st.title("Trading Control Panel")
@@ -238,9 +224,8 @@ def main():
     # Sidebar: Trading Parameters Section
     st.sidebar.header("Currency-Interval")
 
-    # Load trading parameters into session state
-    current_params = load_trading_params()
-    st.session_state.trading_params = current_params  # Ensure session state is always updated
+    # Get current trading parameters
+    current_params = st.session_state.trading_params
 
     # Sidebar: Symbol Input
     symbol = st.sidebar.text_input(
@@ -261,13 +246,6 @@ def main():
     # Sidebar: Save Parameters Button
     if st.sidebar.button("Save Parameters"):
         save_trading_params(symbol, interval)
-        # Trigger rerun using a session state variable
-        st.session_state['trigger_rerun'] = not st.session_state.get('trigger_rerun', False)
-
-    # Check if rerun is needed
-    if st.session_state.get('trigger_rerun', False):
-        st.session_state['trigger_rerun'] = False  # Reset to avoid infinite reruns
-        st.experimental_rerun()  # If not available, remove this line
 
     # Main Layout: Two Columns
     col1, col2 = st.columns(2)
@@ -275,30 +253,55 @@ def main():
     # Column 1: Data Collection Section
     with col1:
         st.markdown("### Data Collection")
+
+        # Display current data status
         st.code(check_data_status())
 
+        # Buttons for Data Fetching and Path Updates
         if st.button("📥 Initial Data Fetch"):
-            save_trading_params(symbol, interval)
-            status = st.empty()
+            save_trading_params(symbol, interval)  # Save parameters before fetching
+            status = st.empty()  # Placeholder for status updates
             run_script("fetch.py", status)
-            st.session_state.needs_rerun = True
-            st.rerun()
 
         if st.button("🔄 Update Data"):
-            save_trading_params(symbol, interval)
-            status = st.empty()
+            save_trading_params(symbol, interval)  # Save parameters before updating
+            status = st.empty()  # Placeholder for status updates
             run_script("fetch_update.py", status)
-            st.session_state.needs_rerun = True
-            st.rerun()
 
         if st.button("🔄 Update Path to Latest"):
             latest_path = save_latest_file_path()
             if latest_path:
                 st.success(f"Data path updated to: {latest_path}")
-                st.session_state.needs_rerun = True
-                st.rerun()
             else:
                 st.error("No data files found in the data folder.")
+
+    # Column 2: Analysis Section
+    with col2:
+        st.markdown("### Analysis")
+        st.markdown("Choose an analysis to launch:")
+
+        # Buttons for Navigating to Different Dashboards
+        if st.button("Entry Models"):
+            st.switch_page("pages/1_entry_models.py")
+
+        if st.button("LLM"):
+            st.switch_page("pages/2_llm.py")
+
+        if st.button("Candle View"):
+            st.switch_page("pages/3_cv.py")
+
+        if st.button("Ichimoko Status"):
+            st.switch_page("pages/4_ichimoko.py")
+        
+        if st.button("Pattern Recognition"):
+            st.switch_page("pages/5_patterns.py")
+
+        if st.button("Feature Analysis"):
+            st.switch_page("pages/6_fa.py")
+
+        if st.button("Machine Learning (ML)"):
+            st.switch_page("pages/7_ml.py")
+
 
 if __name__ == "__main__":
     main()

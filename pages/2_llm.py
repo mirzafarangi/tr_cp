@@ -270,16 +270,8 @@ def generate_gpt_analysis(data_dict, timeframe, last_4h_index, other_index):
         return response.choices[0].message.content
     except Exception as e:
         return f"Error generating analysis: {str(e)}"
-if 'initialized' not in st.session_state:
-    st.session_state.initialized = False
-
-def initialize_page():
-    if not st.session_state.initialized:
-        # Do heavy initialization here
-        st.session_state.initialized = True
 
 def main():
-    initialize_page()
     # Page configuration
     st.set_page_config(page_title="LLM Trading Insights", layout="wide")
     st.title("LLM Trading Insights")

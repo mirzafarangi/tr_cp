@@ -476,16 +476,7 @@ class IchimokuDashboard:
             import traceback
             st.error(traceback.format_exc())
 
-if 'initialized' not in st.session_state:
-    st.session_state.initialized = False
-
-def initialize_page():
-    if not st.session_state.initialized:
-        # Do heavy initialization here
-        st.session_state.initialized = True
-
 def main():
-    initialize_page()
     dashboard = IchimokuDashboard()
     dashboard.run_dashboard()
 

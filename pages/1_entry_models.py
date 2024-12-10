@@ -207,16 +207,8 @@ def calculate_swing_scenario(df, risk_pct, reward_pct, atr, swing_rsi_levels):
         'Take Profit': take_profit
     }
     return swing
-if 'initialized' not in st.session_state:
-    st.session_state.initialized = False
-
-def initialize_page():
-    if not st.session_state.initialized:
-        # Do heavy initialization here
-        st.session_state.initialized = True
 
 def main():
-    initialize_page()
     st.set_page_config(page_title="Enhanced Trading Analysis Dashboard", layout="wide")
     st.title("Enhanced Trading Analysis Dashboard")
     
