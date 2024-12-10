@@ -814,11 +814,14 @@ class PatternDashboard:
             logger.info(f"Found {len(patterns)} patterns")
             
             # Create and display visualization
+            logger.info("Initializing Pattern Analysis Chart...")
             st.subheader("Pattern Analysis Chart")
             fig = analyzer.create_pattern_visualization(patterns)
             st.plotly_chart(fig, use_container_width=True)
+            logger.info(f"plotly done")
             
             # Display pattern details
+            logger.info("Initializing Pattern details...")
             st.subheader("Detected Patterns")
             
             for pattern in patterns:
