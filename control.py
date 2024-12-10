@@ -268,7 +268,7 @@ def main():
     if st.sidebar.button("Save Parameters"):
         save_trading_params(symbol, interval)
         st.session_state.needs_rerun = True
-        st.experimental_rerun()
+        st.rerun()  # Changed from experimental_rerun
 
     # Main Layout: Two Columns
     col1, col2 = st.columns(2)
@@ -286,30 +286,32 @@ def main():
             status = st.empty()
             run_script("fetch.py", status)
             st.session_state.needs_rerun = True
-            st.experimental_rerun()
+            st.rerun()  # Changed from experimental_rerun
 
         if st.button("🔄 Update Data"):
             save_trading_params(symbol, interval)
             status = st.empty()
             run_script("fetch_update.py", status)
             st.session_state.needs_rerun = True
-            st.experimental_rerun()
+            st.rerun()  # Changed from experimental_rerun
 
         if st.button("🔄 Update Path to Latest"):
             latest_path = save_latest_file_path()
             if latest_path:
                 st.success(f"Data path updated to: {latest_path}")
                 st.session_state.needs_rerun = True
-                st.experimental_rerun()
+                st.rerun()  # Changed from experimental_rerun
             else:
                 st.error("No data files found in the data folder.")
-
     
 
     # Handle rerun if needed
     if st.session_state.needs_rerun:
         st.session_state.needs_rerun = False
-        st.experimental_rerun()
+        st.rerun()  # Changed from experimental_rerun
+
+if __name__ == "__main__":
+    main()
 
 if __name__ == "__main__":
     main()
