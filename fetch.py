@@ -186,11 +186,11 @@ class BinanceDataFetcher:
                     return datetime.fromtimestamp(s['listingDate']).strftime('%Y-%m-%d')
                     
             logger.warning(f"No listing date found for {symbol}, using default")
-            return '2024-01-01'  # Default for newer coins
+            return '2024-07-01'  # Default for newer coins
             
         except Exception as e:
             logger.error(f"Error getting listing date: {str(e)}")
-            return '2024-01-01'
+            return '2024-07-01'
     
     def _process_klines_data(self, klines: List) -> pd.DataFrame:
         """Convert raw klines data to DataFrame with proper types"""
