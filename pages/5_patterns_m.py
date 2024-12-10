@@ -64,11 +64,16 @@ class PatternAnalyzer:
         timeframe: Time interval
         lookback: Number of candles to analyze (default 30)
         """
-        # Take the last lookback candles but get extra for calculations
         buffer = 50  # Extra candles for calculations
         total_needed = lookback + buffer
         self.df = df.tail(total_needed).copy()
         self.analysis_df = df.tail(lookback).copy()  # For pattern detection
+        
+        # Validate `analysis_df` size
+        if self.analysis_df.empty:
+            logger.error("Analysis DataFrame is empty after slicing. Check lookback size.")
+            raise ValueError("Analysis DataFrame is empty. Adjust the lookback parameter.")
+        
         self.timeframe = timeframe
         self.lookback = lookback
         self.patterns = []
@@ -139,20 +144,21 @@ class PatternAnalyzer:
             # Sort patterns by end index
             self.patterns = sorted(patterns, key=lambda x: x.end_idx)
             logger.info(f"Found total of {len(patterns)} patterns")
-            
+        
         except Exception as e:
             logger.error(f"Error in pattern detection: {str(e)}")
             raise
-            
+        
         return self.patterns
+
     
     def find_engulfing_patterns(self) -> List[Pattern]:
         """Detect engulfing patterns with volume confirmation"""
         patterns = []
         
-        for i in range(1, len(self.df)-1):
+        for i in range(1, len(self.df) - 1):
             current = self.df.iloc[i]
-            previous = self.df.iloc[i-1]
+            previous = self.df.iloc[i - 1]
             
             # Bullish engulfing
             if (current['close'] > current['open'] and
@@ -163,8 +169,8 @@ class PatternAnalyzer:
                 
                 patterns.append(Pattern(
                     type=PatternType.ENGULFING_BULLISH,
-                    start_idx=i-1,
-                    end_idx=i,
+                    start_idx=max(i - 1, 0),  # Prevent out-of-bounds
+                    end_idx=min(i, len(self.df) - 1),  # Prevent out-of-bounds
                     confidence=0.8,
                     description="Bullish engulfing with volume confirmation",
                     timeframe=self.timeframe,
@@ -172,18 +178,18 @@ class PatternAnalyzer:
                     volume_confirmation=True,
                     multi_timeframe_confluence=False
                 ))
-                
+            
             # Bearish engulfing
             elif (current['close'] < current['open'] and
-                  previous['close'] > previous['open'] and
-                  current['open'] > previous['close'] and
-                  current['close'] < previous['open'] and
-                  current['volume'] > current['volume_sma']):
+                previous['close'] > previous['open'] and
+                current['open'] > previous['close'] and
+                current['close'] < previous['open'] and
+                current['volume'] > current['volume_sma']):
                 
                 patterns.append(Pattern(
                     type=PatternType.ENGULFING_BEARISH,
-                    start_idx=i-1,
-                    end_idx=i,
+                    start_idx=max(i - 1, 0),
+                    end_idx=min(i, len(self.df) - 1),
                     confidence=0.8,
                     description="Bearish engulfing with volume confirmation",
                     timeframe=self.timeframe,
@@ -191,14 +197,15 @@ class PatternAnalyzer:
                     volume_confirmation=True,
                     multi_timeframe_confluence=False
                 ))
-                
+        
         return patterns
+
     
     def find_pinbar_patterns(self) -> List[Pattern]:
         """Detect pin bars with emphasis on wick ratios"""
         patterns = []
         
-        for i in range(1, len(self.df)-1):
+        for i in range(1, len(self.df) - 1):
             current = self.df.iloc[i]
             
             body_size = current['body_size']
@@ -212,8 +219,8 @@ class PatternAnalyzer:
                 
                 patterns.append(Pattern(
                     type=PatternType.PINBAR_BULLISH,
-                    start_idx=i,
-                    end_idx=i,
+                    start_idx=max(i - 1, 0),
+                    end_idx=min(i, len(self.df) - 1),
                     confidence=0.75,
                     description="Bullish pin bar with strong rejection",
                     timeframe=self.timeframe,
@@ -221,16 +228,16 @@ class PatternAnalyzer:
                     volume_confirmation=True,
                     multi_timeframe_confluence=False
                 ))
-                
+            
             # Bearish pin bar
             elif (upper_wick > 2 * body_size and
-                  upper_wick > 2 * lower_wick and
-                  current['volume'] > current['volume_sma']):
+                upper_wick > 2 * lower_wick and
+                current['volume'] > current['volume_sma']):
                 
                 patterns.append(Pattern(
                     type=PatternType.PINBAR_BEARISH,
-                    start_idx=i,
-                    end_idx=i,
+                    start_idx=max(i - 1, 0),
+                    end_idx=min(i, len(self.df) - 1),
                     confidence=0.75,
                     description="Bearish pin bar with strong rejection",
                     timeframe=self.timeframe,
@@ -238,8 +245,9 @@ class PatternAnalyzer:
                     volume_confirmation=True,
                     multi_timeframe_confluence=False
                 ))
-                
+        
         return patterns
+
     def find_inside_outside_bars(self) -> List[Pattern]:
         """Detect inside and outside bars with volume analysis"""
         patterns = []
@@ -740,10 +748,9 @@ class PatternAnalyzer:
     
     def create_pattern_visualization(self, patterns: List[Pattern]) -> go.Figure:
         """Create visualization with pattern annotations."""
-        # Filter the DataFrame for analysis range
         display_df = self.analysis_df.copy()
+        global_to_local_index = {idx: i for i, idx in enumerate(display_df.index)}
 
-        # Initialize the subplot
         fig = make_subplots(
             rows=2, cols=1,
             shared_xaxes=True,
@@ -773,15 +780,23 @@ class PatternAnalyzer:
 
         # Add pattern annotations and shapes
         for pattern in patterns:
+            logger.info(f"Pattern indices: start_idx={pattern.start_idx}, end_idx={pattern.end_idx}")
+            
+            if pattern.start_idx not in global_to_local_index or pattern.end_idx not in global_to_local_index:
+                logger.warning(f"Pattern indices out of range for display_df. Skipping pattern.")
+                continue
+            
+            start_idx_local = global_to_local_index[pattern.start_idx]
+            end_idx_local = global_to_local_index[pattern.end_idx]
             pattern_color = 'green' if 'BULLISH' in pattern.type.value else 'red'
 
             # Add rectangle highlighting the pattern
             fig.add_shape(
                 type="rect",
-                x0=display_df['timestamp'].iloc[pattern.start_idx],
-                x1=display_df['timestamp'].iloc[pattern.end_idx],
-                y0=display_df['low'].iloc[pattern.start_idx:pattern.end_idx + 1].min(),
-                y1=display_df['high'].iloc[pattern.start_idx:pattern.end_idx + 1].max(),
+                x0=display_df['timestamp'].iloc[start_idx_local],
+                x1=display_df['timestamp'].iloc[end_idx_local],
+                y0=display_df['low'].iloc[start_idx_local:end_idx_local + 1].min(),
+                y1=display_df['high'].iloc[start_idx_local:end_idx_local + 1].max(),
                 line=dict(color=pattern_color, width=1),
                 fillcolor=pattern_color,
                 opacity=0.2,
@@ -790,12 +805,12 @@ class PatternAnalyzer:
 
             # Add annotation for the pattern
             fig.add_annotation(
-                x=display_df['timestamp'].iloc[pattern.end_idx],
-                y=display_df['high'].iloc[pattern.end_idx],
+                x=display_df['timestamp'].iloc[end_idx_local],
+                y=display_df['high'].iloc[end_idx_local],
                 text=pattern.type.value,
                 showarrow=True,
                 arrowhead=1,
-                ax=0, ay=-20,  # Offset for annotation
+                ax=0, ay=-20,
                 row=1, col=1
             )
 
@@ -807,6 +822,8 @@ class PatternAnalyzer:
         )
 
         return fig
+
+
 
 
 class PatternDashboard:
