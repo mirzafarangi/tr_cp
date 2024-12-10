@@ -1,6 +1,10 @@
 import streamlit as st
 # Set page config must be the first Streamlit command
-st.set_page_config(page_title="Trading Control Panel", layout="wide")
+st.set_page_config(page_title="[Page Title]", layout="wide")
+
+# Initialize session state
+if 'initialized' not in st.session_state:
+    st.session_state.initialized = False
 import pandas as pd
 import subprocess
 import os
@@ -106,19 +110,17 @@ def load_latest_data() -> pd.DataFrame:
         return pd.DataFrame()
 
 def save_trading_params(symbol: str, interval: str):
-    """Save trading parameters in session state."""
-    st.session_state.trading_params = {
-        'symbol': symbol.upper(),
-        'interval': interval
-    }
+    """Save trading parameters in session state and file."""
+    params = {'symbol': symbol.upper(), 'interval': interval}
+    st.session_state.trading_params = params
 
-    # Optional: Write to file for debugging or local runs
     try:
         with open(TRADING_CONFIG, "w") as f:
-            json.dump(st.session_state.trading_params, f, indent=4)
+            json.dump(params, f, indent=4)
         st.sidebar.success("Trading parameters saved successfully!")
     except Exception as e:
         st.sidebar.error(f"Failed to save trading parameters: {str(e)}")
+
 
 
 
@@ -139,7 +141,6 @@ def save_latest_file_path():
     # Update session state
     st.session_state.config["data_path"] = latest_path
 
-    # Optional: Write to file for debugging or local runs
     try:
         with open(CONFIG_FILE, "w") as f:
             json.dump(st.session_state.config, f, indent=4)
@@ -148,6 +149,7 @@ def save_latest_file_path():
     except Exception as e:
         st.error(f"Failed to update config.json: {str(e)}")
         return None
+
 
 
 
@@ -191,7 +193,7 @@ def run_script(script_name: str, status_placeholder) -> None:
         status_placeholder.error(f"Failed to run {script_name}: {str(e)}")
 
 
-  # Cache for 5 minutes
+
 def check_data_status():
     """Check the status of data files and current path."""
     if not os.path.exists(DATA_FOLDER):
@@ -234,18 +236,15 @@ def main():
     # Load initial configuration data
     load_initial_data()
 
-    # Configure the network (e.g., VPN or proxy) at the start
-    configure_network()
-
     # Display the main header
     st.title("Trading Control Panel")
 
     # Sidebar: Trading Parameters Section
     st.sidebar.header("Currency-Interval")
 
-    # Get cached trading parameters
-    current_params = load_trading_params()  # Using cached version
-    st.session_state.trading_params = current_params  # Update session state
+    # Load trading parameters into session state
+    current_params = load_trading_params()
+    st.session_state.trading_params = current_params  # Ensure session state is always updated
 
     # Sidebar: Symbol Input
     symbol = st.sidebar.text_input(
@@ -268,6 +267,7 @@ def main():
         save_trading_params(symbol, interval)
         st.session_state.needs_rerun = True
         st.rerun()
+
 
     # Main Layout: Two Columns
     col1, col2 = st.columns(2)

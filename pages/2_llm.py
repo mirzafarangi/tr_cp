@@ -1,10 +1,4 @@
 import streamlit as st
-# Set page config must be the first Streamlit command
-st.set_page_config(page_title="[Page Title]", layout="wide")
-
-# Initialize session state
-if 'initialized' not in st.session_state:
-    st.session_state.initialized = False
 import pandas as pd
 import numpy as np
 import os
