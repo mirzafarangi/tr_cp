@@ -6,3 +6,6 @@ ta
 openai>=1.0.0
 python-dotenv
 plotly
+scipy>=1.7.0
+scikit-learn>=0.24.2
+TA-Lib>=0.4.24
