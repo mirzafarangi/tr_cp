@@ -1,0 +1,39 @@
+[[pages]]
+path = "control.py"
+name = "Home"
+icon = "🏠"
+
+[[pages]]
+path = "pages/1_entry_models.py"
+name = "Entry Models"
+icon = "📊"
+
+[[pages]]
+path = "pages/2_llm.py"
+name = "LLM"
+icon = "🤖"
+
+[[pages]]
+path = "pages/3_cv.py"
+name = "Candle View"
+icon = "📈"
+
+[[pages]]
+path = "pages/4_ichimoko.py"
+name = "Ichimoku"
+icon = "☁️"
+
+[[pages]]
+path = "pages/5_patterns.py"
+name = "Patterns"
+icon = "🎯"
+
+[[pages]]
+path = "pages/6_fa.py"
+name = "Feature Analysis"
+icon = "📉"
+
+[[pages]]
+path = "pages/7_ml.py"
+name = "Machine Learning"
+icon = "🧠"

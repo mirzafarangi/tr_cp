@@ -915,8 +915,17 @@ class PatternDashboard:
             logger.error(f"Exception in run_dashboard: {str(e)}", exc_info=True)
 
 
+if 'initialized' not in st.session_state:
+    st.session_state.initialized = False
+
+def initialize_page():
+    if not st.session_state.initialized:
+        # Do heavy initialization here
+        st.session_state.initialized = True
 
 def main():
+    initialize_page()
+
     dashboard = PatternDashboard()
     dashboard.run_dashboard()
 
