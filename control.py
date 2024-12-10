@@ -1,4 +1,6 @@
 import streamlit as st
+# Set page config must be the first Streamlit command
+st.set_page_config(page_title="Trading Control Panel", layout="wide")
 import pandas as pd
 import subprocess
 import os
@@ -225,9 +227,6 @@ def launch_dashboard(script_name: str):
     subprocess.Popen([sys.executable, '-m', 'streamlit', 'run', script_name])
 
 def main():
-    # Set Streamlit page configuration
-    st.set_page_config(page_title="Trading Control Panel", layout="wide")
-
     # Initialize session state for reloads
     if 'needs_rerun' not in st.session_state:
         st.session_state.needs_rerun = False
@@ -268,7 +267,7 @@ def main():
     if st.sidebar.button("Save Parameters"):
         save_trading_params(symbol, interval)
         st.session_state.needs_rerun = True
-        st.rerun()  # Changed from experimental_rerun
+        st.rerun()
 
     # Main Layout: Two Columns
     col1, col2 = st.columns(2)
@@ -276,42 +275,40 @@ def main():
     # Column 1: Data Collection Section
     with col1:
         st.markdown("### Data Collection")
-
-        # Display current data status using cached function
         st.code(check_data_status())
 
-        # Buttons for Data Fetching and Path Updates
         if st.button("📥 Initial Data Fetch"):
             save_trading_params(symbol, interval)
             status = st.empty()
             run_script("fetch.py", status)
             st.session_state.needs_rerun = True
-            st.rerun()  # Changed from experimental_rerun
+            st.rerun()
 
         if st.button("🔄 Update Data"):
             save_trading_params(symbol, interval)
             status = st.empty()
             run_script("fetch_update.py", status)
             st.session_state.needs_rerun = True
-            st.rerun()  # Changed from experimental_rerun
+            st.rerun()
 
         if st.button("🔄 Update Path to Latest"):
             latest_path = save_latest_file_path()
             if latest_path:
                 st.success(f"Data path updated to: {latest_path}")
                 st.session_state.needs_rerun = True
-                st.rerun()  # Changed from experimental_rerun
+                st.rerun()
             else:
                 st.error("No data files found in the data folder.")
-    
+
+    # Column 2: Analysis Section
+    with col2:
+        st.markdown("### Analysis")
+        st.markdown("Choose an analysis from the sidebar menu")
 
     # Handle rerun if needed
     if st.session_state.needs_rerun:
         st.session_state.needs_rerun = False
-        st.rerun()  # Changed from experimental_rerun
-
-if __name__ == "__main__":
-    main()
+        st.rerun()
 
 if __name__ == "__main__":
     main()

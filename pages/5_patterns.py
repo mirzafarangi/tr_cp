@@ -1,5 +1,11 @@
 import streamlit as st
-import pandas as pd
+
+# Set page config must be the first Streamlit command
+st.set_page_config(page_title="[Page Title]", layout="wide")
+
+# Initialize session state
+if 'initialized' not in st.session_state:
+    st.session_state.initialized = Falseimport pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
