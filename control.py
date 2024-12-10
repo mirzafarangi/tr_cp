@@ -6,6 +6,7 @@ from datetime import datetime
 import json
 import requests
 import time 
+from pattern_analysis import PatternDashboard
 
 # Constants
 CONFIG_FILE = 'config.json'
@@ -209,32 +210,33 @@ def launch_dashboard(script_name: str):
     subprocess.Popen([sys.executable, '-m', 'streamlit', 'run', script_name])
 
 def main():
-    # Set Streamlit page configuration
-    st.set_page_config(page_title="Trading Control Panel", layout="wide")
+    # Page Configuration
+    st.set_page_config(
+        page_title="Trading Control Panel",
+        layout="wide",
+        initial_sidebar_state="expanded"
+    )
 
-    # Load initial configuration data
+    # Initial Setup
     load_initial_data()
-
-    # Configure the network (e.g., VPN or proxy) at the start
     configure_network()
-
-    # Display the main header
+    
+    # Main Header
     st.title("Trading Control Panel")
 
-    # Sidebar: Trading Parameters Section
-    st.sidebar.header("Currency-Interval")
-
+    # Sidebar Configuration
+    st.sidebar.header("Trading Parameters")
+    
     # Get current trading parameters
     current_params = st.session_state.trading_params
-
-    # Sidebar: Symbol Input
+    
+    # Trading Parameters Inputs
     symbol = st.sidebar.text_input(
         "Trading Pair",
         value=current_params["symbol"],
         help="Enter the trading pair (e.g., PEPEUSDT, BTCUSDT)"
     )
-
-    # Sidebar: Interval Selection
+    
     intervals = ["15m", "1h", "4h", "8h", "1w", "7d", "1M"]
     interval = st.sidebar.selectbox(
         "Timeframe",
@@ -242,41 +244,62 @@ def main():
         index=intervals.index(current_params["interval"]),
         help="Select the timeframe for analysis"
     )
-
-    # Sidebar: Save Parameters Button
+    
     if st.sidebar.button("Save Parameters"):
         save_trading_params(symbol, interval)
 
-    # Main Layout: Two Columns
-    col1, col2 = st.columns(2)
-
-    # Column 1: Data Collection Section
-    with col1:
-        st.markdown("### Data Collection")
-
-        # Display current data status
-        st.code(check_data_status())
-
-        # Buttons for Data Fetching and Path Updates
-        if st.button("📥 Initial Data Fetch"):
-            save_trading_params(symbol, interval)  # Save parameters before fetching
-            status = st.empty()  # Placeholder for status updates
-            run_script("fetch.py", status)
-
-        if st.button("🔄 Update Data"):
-            save_trading_params(symbol, interval)  # Save parameters before updating
-            status = st.empty()  # Placeholder for status updates
-            run_script("fetch_update.py", status)
-
-        if st.button("🔄 Update Path to Latest"):
-            latest_path = save_latest_file_path()
-            if latest_path:
-                st.success(f"Data path updated to: {latest_path}")
-            else:
-                st.error("No data files found in the data folder.")
-
+    # Main Content
+    tab1, tab2 = st.tabs(["Data Collection", "Pattern Analysis"])
     
-
+    # Tab 1: Data Collection
+    with tab1:
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("### Data Management")
+            st.code(check_data_status())
+            
+            # Data Collection Buttons
+            col1_1, col1_2, col1_3 = st.columns(3)
+            
+            with col1_1:
+                if st.button("📥 Initial Data Fetch"):
+                    save_trading_params(symbol, interval)
+                    status = st.empty()
+                    run_script("fetch.py", status)
+            
+            with col1_2:
+                if st.button("🔄 Update Data"):
+                    save_trading_params(symbol, interval)
+                    status = st.empty()
+                    run_script("fetch_update.py", status)
+            
+            with col1_3:
+                if st.button("🔄 Update Path"):
+                    latest_path = save_latest_file_path()
+                    if latest_path:
+                        st.success(f"Path updated: {latest_path}")
+                    else:
+                        st.error("No data files found")
+        
+        with col2:
+            st.markdown("### Start")
+            st.info("""
+            1. Set trading parameters,
+            2. Initial data fetch,
+            3. Update data (for adding additional features and indicators),
+            4. Update the path, 
+            - Enjoy!
+            """)
+    
+    # Tab 2: Pattern Analysis
+    with tab2:
+        try:
+            dashboard = PatternDashboard()
+            dashboard.run_dashboard()
+        except Exception as e:
+            st.error(f"Error loading pattern analysis: {str(e)}")
+            st.info("Please ensure data is collected before running pattern analysis")
 
 if __name__ == "__main__":
     main()
