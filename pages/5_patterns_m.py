@@ -66,8 +66,9 @@ class PatternAnalyzer:
         """
         buffer = 50  # Extra candles for calculations
         total_needed = lookback + buffer
-        self.df = df.tail(total_needed).copy()
-        self.analysis_df = df.tail(lookback).copy()  # For pattern detection
+        self.df = df.head(total_needed).copy()
+        self.analysis_df = self.df.head(lookback).copy()  # For pattern detection
+ # For pattern detection
         
         # Validate `analysis_df` size
         if self.analysis_df.empty:
