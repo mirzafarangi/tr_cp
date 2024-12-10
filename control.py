@@ -261,8 +261,8 @@ def main():
     # Sidebar: Save Parameters Button
     if st.sidebar.button("Save Parameters"):
         save_trading_params(symbol, interval)
-        st.session_state.needs_rerun = True
-        st.rerun()
+        st.experimental_rerun()  # Ensure immediate rerun
+
 
 
     # Main Layout: Two Columns
