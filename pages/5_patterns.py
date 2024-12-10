@@ -409,6 +409,58 @@ class PatternAnalyzer:
                 ))
                 
         return patterns
+    def find_institutional_accumulation(self) -> List[Pattern]:
+        """Detect institutional accumulation and distribution patterns"""
+        patterns = []
+        window = 20  # Analysis window
+        
+        for i in range(window, len(self.df)-1):
+            current = self.df.iloc[i]
+            window_data = self.df.iloc[i-window:i]
+            
+            # Calculate volume and price metrics
+            avg_volume = window_data['volume'].mean()
+            price_trend = (current['close'] - window_data['close'].mean()) / window_data['close'].mean()
+            volume_trend = (current['volume'] - avg_volume) / avg_volume
+            cvd_change = self.df['cvd'].iloc[i] - self.df['cvd'].iloc[i-window]
+            
+            # Accumulation Pattern
+            if (current['volume'] > avg_volume * 1.5 and
+                abs(current['close'] - current['open']) < current['atr'] * 0.5 and  # Small body
+                cvd_change > 0 and  # Positive cumulative delta
+                current['close'] > window_data['close'].mean()):  # Overall uptrend
+                
+                patterns.append(Pattern(
+                    type=PatternType.INSTITUTIONAL_ACCUMULATION,
+                    start_idx=i-window,
+                    end_idx=i,
+                    confidence=0.85,
+                    description="Institutional Accumulation - High volume with price stability",
+                    timeframe=self.timeframe,
+                    risk_reward=2.5,
+                    volume_confirmation=True,
+                    multi_timeframe_confluence=False
+                ))
+                
+            # Distribution Pattern
+            elif (current['volume'] > avg_volume * 1.5 and
+                  abs(current['close'] - current['open']) < current['atr'] * 0.5 and
+                  cvd_change < 0 and  # Negative cumulative delta
+                  current['close'] < window_data['close'].mean()):  # Overall downtrend
+                
+                patterns.append(Pattern(
+                    type=PatternType.INSTITUTIONAL_DISTRIBUTION,
+                    start_idx=i-window,
+                    end_idx=i,
+                    confidence=0.85,
+                    description="Institutional Distribution - High volume selling pressure",
+                    timeframe=self.timeframe,
+                    risk_reward=2.5,
+                    volume_confirmation=True,
+                    multi_timeframe_confluence=False
+                ))
+                
+        return patterns
     
     def create_pattern_visualization(self, patterns: List[Pattern]) -> go.Figure:
         """Create visualization with pattern annotations"""
