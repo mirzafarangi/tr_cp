@@ -294,7 +294,7 @@ def main():
             st.switch_page("pages/4_ichimoko.py")
         
         if st.button("Pattern Recognition"):
-            st.switch_page("pages/5_patterns_m.py")
+            st.switch_page("pages/5_patterns.py")
 
         if st.button("Feature Analysis"):
             st.switch_page("pages/6_fa.py")
