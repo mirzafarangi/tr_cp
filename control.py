@@ -287,7 +287,7 @@ def main():
             st.info("""
             1. Set trading parameters,
             2. Initial data fetch,
-            3. Update data (for adding additional features and indicators),
+            3. Update data (for additional features and indicators),
             4. Update the path, 
             - Enjoy!
             """)
