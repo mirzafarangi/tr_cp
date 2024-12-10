@@ -275,32 +275,7 @@ def main():
             else:
                 st.error("No data files found in the data folder.")
 
-    # Column 2: Analysis Section
-    with col2:
-        st.markdown("### Analysis")
-        st.markdown("Choose an analysis to launch:")
-
-        # Buttons for Navigating to Different Dashboards
-        if st.button("Entry Models"):
-            st.switch_page("pages/1_entry_models.py")
-
-        if st.button("LLM"):
-            st.switch_page("pages/2_llm.py")
-
-        if st.button("Candle View"):
-            st.switch_page("pages/3_cv.py")
-
-        if st.button("Ichimoko Status"):
-            st.switch_page("pages/4_ichimoko.py")
-        
-        if st.button("Pattern Recognition"):
-            st.switch_page("pages/5_patterns.py")
-
-        if st.button("Feature Analysis"):
-            st.switch_page("pages/6_fa.py")
-
-        if st.button("Machine Learning (ML)"):
-            st.switch_page("pages/7_ml.py")
+    
 
 
 if __name__ == "__main__":
