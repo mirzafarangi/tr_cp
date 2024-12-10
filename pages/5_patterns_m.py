@@ -59,29 +59,28 @@ class Pattern:
 class PatternAnalyzer:
     def __init__(self, df: pd.DataFrame, timeframe: str, lookback: int = 30):
         """
-        Initialize pattern analyzer
-        df: DataFrame with OHLCV data
-        timeframe: Time interval
-        lookback: Number of candles to analyze (default 30)
+        Initialize pattern analyzer.
+        df: DataFrame with OHLCV data.
+        timeframe: Time interval.
+        lookback: Number of candles to analyze (default 30).
         """
-        buffer = 50  # Extra candles for calculations
+        buffer = 50  # Extra candles for calculations.
         total_needed = lookback + buffer
-        self.df = df.head(total_needed).copy()
-        self.analysis_df = self.df.head(lookback).copy()  # For pattern detection
- # For pattern detection
-        
+        self.df = df.tail(total_needed).copy()  # Select the most recent rows for analysis.
+        self.analysis_df = self.df.tail(lookback).copy()  # Analyze the most recent `lookback` candles.
+
         # Validate `analysis_df` size
         if self.analysis_df.empty:
             logger.error("Analysis DataFrame is empty after slicing. Check lookback size.")
             raise ValueError("Analysis DataFrame is empty. Adjust the lookback parameter.")
-        
+
         self.timeframe = timeframe
         self.lookback = lookback
         self.patterns = []
         self.preprocess_data()
-        
+
     def preprocess_data(self):
-        """Calculate necessary indicators and metrics"""
+        """Calculate necessary indicators and metrics."""
         # Calculate ATR without TA-Lib
         def calculate_atr(high, low, close, period=14):
             tr = pd.DataFrame()
@@ -94,12 +93,12 @@ class PatternAnalyzer:
         # Volatility metrics
         self.df['atr'] = calculate_atr(self.df['high'], self.df['low'], self.df['close'])
         self.df['volume_sma'] = self.df['volume'].rolling(window=20).mean()
-        
+
         # Price action metrics
         self.df['body_size'] = abs(self.df['close'] - self.df['open'])
         self.df['upper_wick'] = self.df['high'] - self.df[['open', 'close']].max(axis=1)
         self.df['lower_wick'] = self.df[['open', 'close']].min(axis=1) - self.df['low']
-        
+
         # Volume analysis
         self.df['volume_delta'] = np.where(
             self.df['close'] >= self.df['open'],
@@ -110,6 +109,7 @@ class PatternAnalyzer:
 
         # Fill NaN values
         self.df = self.df.fillna(method='ffill').fillna(0)
+
         
     def find_all_patterns(self) -> List[Pattern]:
         """Detect all pattern types"""
@@ -888,7 +888,7 @@ class PatternDashboard:
             st.subheader("Detected Patterns")
             if patterns:
                 for pattern in patterns:
-                    with st.expander(f"{pattern.type.value} at {df['timestamp'].iloc[pattern.end_idx]}"):
+                    with st.expander(f"{pattern.type.value} at {analyzer.df['timestamp'].iloc[pattern.end_idx]}"):
                         col1, col2 = st.columns(2)
 
                         with col1:
@@ -913,6 +913,7 @@ class PatternDashboard:
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
             logger.error(f"Exception in run_dashboard: {str(e)}", exc_info=True)
+
 
 
 def main():
