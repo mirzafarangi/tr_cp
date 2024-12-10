@@ -304,10 +304,7 @@ def main():
             else:
                 st.error("No data files found in the data folder.")
 
-    # Column 2: Analysis Section
-    with col2:
-        st.markdown("### Analysis")
-        st.markdown("Choose an analysis from the sidebar menu")
+    
 
     # Handle rerun if needed
     if st.session_state.needs_rerun:
