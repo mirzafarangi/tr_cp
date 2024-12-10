@@ -57,9 +57,20 @@ class Pattern:
     multi_timeframe_confluence: bool
 
 class PatternAnalyzer:
-    def __init__(self, df: pd.DataFrame, timeframe: str):
-        self.df = df.copy()
+    def __init__(self, df: pd.DataFrame, timeframe: str, lookback: int = 30):
+        """
+        Initialize pattern analyzer
+        df: DataFrame with OHLCV data
+        timeframe: Time interval
+        lookback: Number of candles to analyze (default 30)
+        """
+        # Take the last lookback candles but get extra for calculations
+        buffer = 50  # Extra candles for calculations
+        total_needed = lookback + buffer
+        self.df = df.tail(total_needed).copy()
+        self.analysis_df = df.tail(lookback).copy()  # For pattern detection
         self.timeframe = timeframe
+        self.lookback = lookback
         self.patterns = []
         self.preprocess_data()
         
@@ -97,28 +108,42 @@ class PatternAnalyzer:
     def find_all_patterns(self) -> List[Pattern]:
         """Detect all pattern types"""
         patterns = []
+        logger.info("Starting pattern detection...")
         
-        # Basic patterns
-        patterns.extend(self.find_engulfing_patterns())
-        patterns.extend(self.find_pinbar_patterns())
-        patterns.extend(self.find_inside_outside_bars())
-        
-        # Advanced patterns
-        patterns.extend(self.find_liquidity_sweeps())
-        patterns.extend(self.find_order_blocks())
-        patterns.extend(self.find_fair_value_gaps())
-        
-        # Volume patterns
-        patterns.extend(self.find_institutional_accumulation())
-        patterns.extend(self.find_volume_divergence())
-        
-        # Market structure patterns
-        patterns.extend(self.find_market_structure_breaks())
-        
-        # Volatility patterns
-        patterns.extend(self.find_volatility_patterns())
-        
-        self.patterns = sorted(patterns, key=lambda x: x.end_idx)
+        try:
+            # Basic patterns
+            logger.info("Finding basic patterns...")
+            patterns.extend(self.find_engulfing_patterns())
+            patterns.extend(self.find_pinbar_patterns())
+            patterns.extend(self.find_inside_outside_bars())
+            
+            # Advanced patterns
+            logger.info("Finding advanced patterns...")
+            patterns.extend(self.find_liquidity_sweeps())
+            patterns.extend(self.find_order_blocks())
+            patterns.extend(self.find_fair_value_gaps())
+            
+            # Volume patterns
+            logger.info("Finding volume patterns...")
+            patterns.extend(self.find_institutional_accumulation())
+            patterns.extend(self.find_volume_divergence())
+            
+            # Market structure patterns
+            logger.info("Finding market structure patterns...")
+            patterns.extend(self.find_market_structure_breaks())
+            
+            # Volatility patterns
+            logger.info("Finding volatility patterns...")
+            patterns.extend(self.find_volatility_patterns())
+            
+            # Sort patterns by end index
+            self.patterns = sorted(patterns, key=lambda x: x.end_idx)
+            logger.info(f"Found total of {len(patterns)} patterns")
+            
+        except Exception as e:
+            logger.error(f"Error in pattern detection: {str(e)}")
+            raise
+            
         return self.patterns
     
     def find_engulfing_patterns(self) -> List[Pattern]:
@@ -714,67 +739,75 @@ class PatternAnalyzer:
         return patterns
     
     def create_pattern_visualization(self, patterns: List[Pattern]) -> go.Figure:
-        """Create visualization with pattern annotations"""
-        fig = make_subplots(rows=2, cols=1, 
-                           shared_xaxes=True,
-                           vertical_spacing=0.05,
-                           row_heights=[0.7, 0.3])
-        
-        # Add candlestick
+        """Create visualization with pattern annotations."""
+        # Filter the DataFrame for analysis range
+        display_df = self.analysis_df.copy()
+
+        # Initialize the subplot
+        fig = make_subplots(
+            rows=2, cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.05,
+            row_heights=[0.7, 0.3]
+        )
+
+        # Add candlestick chart
         fig.add_trace(go.Candlestick(
-            x=self.df['timestamp'],
-            open=self.df['open'],
-            high=self.df['high'],
-            low=self.df['low'],
-            close=self.df['close'],
+            x=display_df['timestamp'],
+            open=display_df['open'],
+            high=display_df['high'],
+            low=display_df['low'],
+            close=display_df['close'],
             name="Price"
         ), row=1, col=1)
-        
-        # Add volume
-        colors = ['red' if close < open else 'green' 
-                 for close, open in zip(self.df['close'], self.df['open'])]
-        
+
+        # Add volume bars
+        colors = ['red' if close < open else 'green'
+                for close, open in zip(display_df['close'], display_df['open'])]
         fig.add_trace(go.Bar(
-            x=self.df['timestamp'],
-            y=self.df['volume'],
+            x=display_df['timestamp'],
+            y=display_df['volume'],
             name="Volume",
             marker_color=colors
         ), row=2, col=1)
-        
-        # Add pattern annotations
+
+        # Add pattern annotations and shapes
         for pattern in patterns:
             pattern_color = 'green' if 'BULLISH' in pattern.type.value else 'red'
-            
-            # Add shape for pattern
+
+            # Add rectangle highlighting the pattern
             fig.add_shape(
                 type="rect",
-                x0=self.df['timestamp'].iloc[pattern.start_idx],
-                x1=self.df['timestamp'].iloc[pattern.end_idx],
-                y0=self.df['low'].iloc[pattern.start_idx:pattern.end_idx+1].min(),
-                y1=self.df['high'].iloc[pattern.start_idx:pattern.end_idx+1].max(),
+                x0=display_df['timestamp'].iloc[pattern.start_idx],
+                x1=display_df['timestamp'].iloc[pattern.end_idx],
+                y0=display_df['low'].iloc[pattern.start_idx:pattern.end_idx + 1].min(),
+                y1=display_df['high'].iloc[pattern.start_idx:pattern.end_idx + 1].max(),
                 line=dict(color=pattern_color, width=1),
                 fillcolor=pattern_color,
                 opacity=0.2,
                 row=1, col=1
             )
-            
-            # Add annotation
+
+            # Add annotation for the pattern
             fig.add_annotation(
-                x=self.df['timestamp'].iloc[pattern.end_idx],
-                y=self.df['high'].iloc[pattern.end_idx],
+                x=display_df['timestamp'].iloc[pattern.end_idx],
+                y=display_df['high'].iloc[pattern.end_idx],
                 text=pattern.type.value,
                 showarrow=True,
                 arrowhead=1,
+                ax=0, ay=-20,  # Offset for annotation
                 row=1, col=1
             )
-        
+
+        # Layout adjustments
         fig.update_layout(
             title=f"Pattern Analysis ({self.timeframe})",
             height=800,
             showlegend=True
         )
-        
+
         return fig
+
 
 class PatternDashboard:
     def __init__(self):
@@ -790,65 +823,79 @@ class PatternDashboard:
     
     def run_dashboard(self):
         st.title("Advanced Pattern Recognition")
-        
+
         try:
-            # Log each step
-            logger.info("Starting to load data...")
-            # Load data
-            df = self.load_data()
-            logger.info(f"Loaded data with shape: {df.shape}")
-            
-            # Timeframe selection
+            # Step 1: Load data
+            with st.spinner('Loading data...'):
+                logger.info("Starting to load data...")
+                df = self.load_data()
+                if df.empty:
+                    st.error("The data is empty. Please check your data source.")
+                    return
+                logger.info(f"Loaded data with shape: {df.shape}")
+
+            # Step 2: Timeframe and candle count selection
             timeframe = st.selectbox(
                 "Select Timeframe for Analysis",
                 ["15m", "1h", "4h", "8h", "1w", "1M"]
             )
             logger.info(f"Selected timeframe: {timeframe}")
 
+            lookback = st.slider(
+                "Number of candles to analyze",
+                min_value=10,
+                max_value=100,
+                value=30,
+                help="Select how many recent candles to analyze"
+            )
+            logger.info(f"User selected {lookback} candles for analysis.")
 
-            # Initialize analyzer
-            logger.info("Initializing analyzer...")
-            analyzer = PatternAnalyzer(df, timeframe)
-            logger.info("Finding patterns...")
-            patterns = analyzer.find_all_patterns()
-            logger.info(f"Found {len(patterns)} patterns")
-            
-            # Create and display visualization
-            logger.info("Initializing Pattern Analysis Chart...")
+            # Step 3: Analyze patterns
+            with st.spinner('Analyzing patterns...'):
+                logger.info("Initializing PatternAnalyzer...")
+                analyzer = PatternAnalyzer(df, timeframe, lookback)
+
+                logger.info("Finding patterns...")
+                patterns = analyzer.find_all_patterns()
+                logger.info(f"Found {len(patterns)} patterns.")
+
+            # Step 4: Visualization
             st.subheader("Pattern Analysis Chart")
-            fig = analyzer.create_pattern_visualization(patterns)
-            st.plotly_chart(fig, use_container_width=True)
-            logger.info(f"plotly done")
-            
-            # Display pattern details
-            logger.info("Initializing Pattern details...")
+            with st.spinner('Creating visualization...'):
+                fig = analyzer.create_pattern_visualization(patterns)
+                st.plotly_chart(fig, use_container_width=True)
+                logger.info("Visualization created.")
+
+            # Step 5: Display pattern details
             st.subheader("Detected Patterns")
-            
-            for pattern in patterns:
-                with st.expander(f"{pattern.type.value} at {df['timestamp'].iloc[pattern.end_idx]}"):
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        st.write("Pattern Details:")
-                        st.write(f"Confidence: {pattern.confidence:.2f}")
-                        st.write(f"Risk/Reward: {pattern.risk_reward:.2f}")
-                        st.write(f"Volume Confirmation: {'Yes' if pattern.volume_confirmation else 'No'}")
-                    
-                    with col2:
-                        st.write("Trade Setup:")
-                        if 'BULLISH' in pattern.type.value:
-                            st.write("Entry: Market structure high")
-                            st.write("Stop: Below pattern low")
-                            st.write("Target: Based on R:R ratio")
-                        elif 'BEARISH' in pattern.type.value:
-                            st.write("Entry: Market structure low")
-                            st.write("Stop: Above pattern high")
-                            st.write("Target: Based on R:R ratio")
-            
+            if patterns:
+                for pattern in patterns:
+                    with st.expander(f"{pattern.type.value} at {df['timestamp'].iloc[pattern.end_idx]}"):
+                        col1, col2 = st.columns(2)
+
+                        with col1:
+                            st.write("Pattern Details:")
+                            st.write(f"Confidence: {pattern.confidence:.2f}")
+                            st.write(f"Risk/Reward: {pattern.risk_reward:.2f}")
+                            st.write(f"Volume Confirmation: {'Yes' if pattern.volume_confirmation else 'No'}")
+
+                        with col2:
+                            st.write("Trade Setup:")
+                            if 'BULLISH' in pattern.type.value:
+                                st.write("Entry: Market structure high")
+                                st.write("Stop: Below pattern low")
+                                st.write("Target: Based on R:R ratio")
+                            elif 'BEARISH' in pattern.type.value:
+                                st.write("Entry: Market structure low")
+                                st.write("Stop: Above pattern high")
+                                st.write("Target: Based on R:R ratio")
+            else:
+                st.info("No patterns detected for the selected timeframe and candles.")
+
         except Exception as e:
-            st.error(f"Error in dashboard: {str(e)}")
-            import traceback
-            st.error(traceback.format_exc())
+            st.error(f"An error occurred: {str(e)}")
+            logger.error(f"Exception in run_dashboard: {str(e)}", exc_info=True)
+
 
 def main():
     dashboard = PatternDashboard()
