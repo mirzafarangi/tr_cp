@@ -201,6 +201,56 @@ class PatternAnalyzer:
                 ))
                 
         return patterns
+    def find_inside_outside_bars(self) -> List[Pattern]:
+        """Detect inside and outside bars with volume analysis"""
+        patterns = []
+        
+        for i in range(1, len(self.df)-1):
+            current = self.df.iloc[i]
+            previous = self.df.iloc[i-1]
+            
+            # Inside bar
+            if (current['high'] < previous['high'] and
+                current['low'] > previous['low']):
+                
+                # Higher confidence if volume is lower than average
+                confidence = 0.85 if current['volume'] < current['volume_sma'] else 0.7
+                
+                patterns.append(Pattern(
+                    type=PatternType.INSIDE_BAR,
+                    start_idx=i-1,
+                    end_idx=i,
+                    confidence=confidence,
+                    description="Inside bar consolidation pattern",
+                    timeframe=self.timeframe,
+                    risk_reward=2.0,
+                    volume_confirmation=current['volume'] < current['volume_sma'],
+                    multi_timeframe_confluence=False
+                ))
+            
+            # Outside bar
+            elif (current['high'] > previous['high'] and
+                  current['low'] < previous['low'] and
+                  current['volume'] > current['volume_sma'] * 1.2):  # Strong volume confirmation
+                
+                # Determine if bullish or bearish outside bar
+                pattern_type = (PatternType.OUTSIDE_BAR)
+                desc = ("Bullish outside bar" if current['close'] > current['open']
+                       else "Bearish outside bar")
+                
+                patterns.append(Pattern(
+                    type=pattern_type,
+                    start_idx=i-1,
+                    end_idx=i,
+                    confidence=0.8,
+                    description=desc,
+                    timeframe=self.timeframe,
+                    risk_reward=2.5,
+                    volume_confirmation=True,
+                    multi_timeframe_confluence=False
+                ))
+        
+        return patterns
     
     def find_liquidity_sweeps(self) -> List[Pattern]:
         """Detect liquidity sweeps and stop hunts"""
