@@ -69,7 +69,7 @@ def load_initial_data():
 
 
 # Replace the current load_trading_params function with:
-@st.cache_data(ttl=3600)  # Cache for 1 hour
+  # Cache for 1 hour
 def load_trading_params():
     """Load trading parameters from config file"""
     try:
@@ -84,7 +84,7 @@ def load_trading_params():
         return {"symbol": "PEPEUSDT", "interval": "4h"}
 
 # Add this new function for loading data:
-@st.cache_data(ttl=300)  # Cache for 5 minutes
+  # Cache for 5 minutes
 def load_latest_data() -> pd.DataFrame:
     """Load and cache the latest data"""
     try:
@@ -189,7 +189,7 @@ def run_script(script_name: str, status_placeholder) -> None:
         status_placeholder.error(f"Failed to run {script_name}: {str(e)}")
 
 
-@st.cache_data(ttl=300)  # Cache for 5 minutes
+  # Cache for 5 minutes
 def check_data_status():
     """Check the status of data files and current path"""
     if not os.path.exists(DATA_FOLDER):
