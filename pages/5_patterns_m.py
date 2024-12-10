@@ -8,6 +8,8 @@ from enum import Enum
 from typing import List, Dict, Tuple, Optional
 import json
 import ta
+import logging
+
 
 class PatternType(Enum):
     # Basic Patterns
