@@ -204,7 +204,7 @@ class IchimokuDashboard:
         return pd.read_csv(self.data_path, parse_dates=['timestamp'])
     
     def run_dashboard(self):
-        st.title("Advanced Ichimoku Analysis")
+        st.title("Ichimoku Analysis")
         
         try:
             # Load data

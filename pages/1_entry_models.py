@@ -209,8 +209,8 @@ def calculate_swing_scenario(df, risk_pct, reward_pct, atr, swing_rsi_levels):
     return swing
 
 def main():
-    st.set_page_config(page_title="Enhanced Trading Analysis Dashboard", layout="wide")
-    st.title("Enhanced Trading Analysis Dashboard")
+    st.set_page_config(page_title="Entry Models", layout="wide")
+    st.title("Entry Models")
     
     # Sidebar inputs
     st.sidebar.header("Parameters")
@@ -222,8 +222,8 @@ def main():
     
     # RSI parameters
     st.sidebar.subheader("RSI Settings")
-    scalping_rsi = st.sidebar.selectbox("Scalping RSI Period", [7, 9], index=0)
-    swing_rsi_levels = st.sidebar.slider("Swing RSI Levels", 0, 100, (30, 70))
+    scalping_rsi = st.sidebar.selectbox("Scenario 1 RSI Period", [7, 9], index=0)
+    swing_rsi_levels = st.sidebar.slider("Scenario 2 RSI Levels", 0, 100, (30, 70))
     
     # Stochastic parameters
     st.sidebar.subheader("Stochastic Settings")
@@ -272,7 +272,7 @@ def main():
         col1, col2 = st.columns(2)
         
         with col1:
-            st.subheader("Scalping Scenario (1m-15m)")
+            st.subheader("Scenario 1 (15m)")
             with st.expander("Entry Signals", expanded=True):
                 for indicator, value in scalping_scenario['Entry Signals'].items():
                     st.metric(indicator, f"{value:.8f}")
@@ -285,7 +285,7 @@ def main():
                 st.metric("Risk/Reward Ratio", f"{(reward/risk):.2f}")
         
         with col2:
-            st.subheader("Swing Trading Scenario (4H-1D)")
+            st.subheader("Scenario 2 (4H)")
             with st.expander("Entry Signals", expanded=True):
                 for indicator, value in swing_scenario['Entry Signals'].items():
                     st.metric(indicator, f"{value:.8f}")
@@ -318,7 +318,7 @@ def main():
         col1, col2 = st.columns(2)
         
         with col1:
-            st.subheader("Scalping Ichimoku (6, 13, 9)")
+            st.subheader("Scenario 1 Ichimoku (6, 13, 9)")
             ichimoku_scalp = calculate_ichimoku(df, 6, 13, 9)
             with st.expander("Ichimoku Levels", expanded=True):
                 st.metric("Tenkan-sen (Conversion)", f"{ichimoku_scalp['tenkan_sen']:.8f}")
@@ -337,7 +337,7 @@ def main():
                 st.metric("Tenkan/Kijun Signal", tenkan_kijun_signal)
         
         with col2:
-            st.subheader("Swing Ichimoku (9, 26, 52)")
+            st.subheader("Scenario 2 Ichimoku (9, 26, 52)")
             ichimoku_swing = calculate_ichimoku(df, 9, 26, 52)
             with st.expander("Ichimoku Levels", expanded=True):
                 st.metric("Tenkan-sen (Conversion)", f"{ichimoku_swing['tenkan_sen']:.8f}")

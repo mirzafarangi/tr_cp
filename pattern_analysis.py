@@ -863,7 +863,7 @@ class PatternDashboard:
         return pd.read_csv(self.data_path, parse_dates=['timestamp'])
     
     def run_dashboard(self):
-        """Run the pattern analysis dashboard with multi-select."""
+        """Pattern Analysis"""
         try:
             # Load data
             with st.spinner('Loading data...'):

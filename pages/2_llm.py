@@ -273,8 +273,8 @@ def generate_gpt_analysis(data_dict, timeframe, last_4h_index, other_index):
 
 def main():
     # Page configuration
-    st.set_page_config(page_title="LLM Trading Insights", layout="wide")
-    st.title("LLM Trading Insights")
+    st.set_page_config(page_title="LLM Last Candle Insights", layout="wide")
+    st.title("LLM Last Candle Insights")
     
     # Load and process data
     latest_file = load_latest_file()
@@ -318,10 +318,10 @@ def main():
     )
     
     # Generate analysis button and display
-    if st.button("Analysis Last Candle"):
+    if st.button("Analyze Last Candle"):
         with st.spinner("generating report..."):
             analysis = generate_gpt_analysis(latest_data, timeframe, last_4h_index, other_index)
-            st.subheader("Trading Analysis Report")
+            st.subheader("Analysis Report")
             st.markdown(analysis)
 
 if __name__ == "__main__":

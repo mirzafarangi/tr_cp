@@ -198,8 +198,8 @@ def plot_advanced_patterns(df, patterns):
 
 # --- Main Streamlit App ---
 def main():
-    st.set_page_config(page_title="Live 4H Candle Analysis", layout="wide")
-    st.title("Live 4H Candle Analysis Dashboard")
+    st.set_page_config(page_title="Candle Analysis", layout="wide")
+    st.title("Candle Analysis")
 
     # Sidebar inputs
     st.sidebar.header("Parameters")
